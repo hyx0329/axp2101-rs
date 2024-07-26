@@ -1,0 +1,18 @@
+[package]
+name = "axp2101"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bit_field = "0.10.2"
+defmt = { version = "0.3.8", optional = true }
+embedded-hal = "1.0.0"
+shared-bus = "0.3.1"
+
+[dev-dependencies]
+paste = "1.0.15"
+
+[features]
+defmt = ["dep:defmt"]
+dldo1-1v4 = []
+dldo2-1v4 = []
