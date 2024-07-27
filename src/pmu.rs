@@ -101,7 +101,8 @@ pub enum OtpDieL1 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum PowerOnReason {
-    /// PWRON pin pulled low for configured time.
+    /// PWRON pin pulled low for configured time. The same key can be used to trigger
+    /// both power on and power off signal.
     PowerOnKey,
     /// IRQ pin pulled down.
     IrqPulledDown,
@@ -111,9 +112,34 @@ pub enum PowerOnReason {
     BatteryChargedOver3v3,
     /// External Li battery inserted.
     BatteryInserted,
-    /// When PWRON is configured in EN mode, PMU is on when PWRON is HIGH.
+    /// PWRON pin pulled HIGH, only when PWRON is configured in EN mode.
     PowerOnEnMode,
     /// Unknown power on reason, maybe a customized one.
+    Unknown,
+}
+
+/// PMU power off reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum PowerOffReason {
+    /// PWRON pin pulled low for configured time. The same key can be used to trigger
+    /// both power on and power off signal.
+    PowerOffKey,
+    /// Software power off by writing the power off register.
+    Software,
+    /// PWRON pin pulled LOW, only when PWRON is configured in EN mode.
+    PowerOffEnMode,
+    /// VSYS voltage dropped below limit.
+    VsysUndervolt,
+    /// VBUS voltage exceeds limit.
+    VbusOvervolt,
+    /// Any DCDC's voltage dropped below limit.
+    DcdcUndervolt,
+    /// Any DCDC's voltage exceeds limit.
+    DcdcOvervolt,
+    /// DIE temperature exceeds limit.
+    DieOverheat,
+    /// Unknown power on reason, should not occur in normal cases.
     Unknown,
 }
 
@@ -204,7 +230,7 @@ pub enum WatchdogAction {
     #[num_enum(default)]
     IrqOnly,
     /// Send an IRQ signal, and perform a system reset(reset all related PMU registers).
-    /// 
+    ///
     /// The registers which have reset condition as "System Reset" will be reseted.
     IrqSystemReset,
     /// Pull down PWROK for 1 second, and do what [`WatchdogAction::IrqSystemReset`] does.
@@ -244,7 +270,7 @@ address!{
     REG_POWERON_REASON,             0x20,
     REG_POWEROFF_REASON,            0x21,
     REG_POWEROFF_EN_BEHAVIOR,       0x22,
-    REG_POWEROFF_DCDC_PROTECT,      0x23,
+    REG_DCDC_PROTECT,               0x23,
     REG_POWEROFF_VBAT_LOW_THRESH,   0x24,
     REG_PWROK_CONFIG_PWROFF_SEQ,    0x25,
     REG_SLEEP_WAKE_CONFIG,          0x26,
@@ -688,7 +714,7 @@ impl<I2C: I2c> Axp2101<I2C> {
     }
 
     /// Sets what a watchdog reset triggers.
-    /// 
+    ///
     /// Chip defaults to [`WatchdogAction::IrqOnly`].
     pub fn set_watchdog_action(&mut self, value: WatchdogAction) -> Result<(), Error> {
         self.write_bits(REG_WATCHDOG_CONTROL, 4..=5, value.into())
@@ -700,10 +726,10 @@ impl<I2C: I2c> Axp2101<I2C> {
     }
 
     /// Sets TWSI watchdog timer length.
-    /// 
+    ///
     /// The actual time length is 2 ** raw_value. For example, write 0 for 1 second,
     /// 1 for 2 seconds, 4 for 16 seconds.
-    /// 
+    ///
     /// The maximum timer length is 128 seconds, corresponding raw value is 7(0b111).
     pub fn set_watchdog_timer_length(&mut self, value: u8) -> Result<(), Error> {
         if value > 0b111 {
@@ -714,7 +740,7 @@ impl<I2C: I2c> Axp2101<I2C> {
     }
 
     /// Sets low-battery warning level 2.
-    /// 
+    ///
     /// From 5% to 20%, both end included, 1% per step.
     pub fn set_bat_low_level2(&mut self, value: u8) -> Result<(), Error> {
         if value < 5 || value > 20 {
@@ -726,7 +752,7 @@ impl<I2C: I2c> Axp2101<I2C> {
     }
 
     /// Sets low-battery warning level 1.
-    /// 
+    ///
     /// From 0% to 15%, both end included, 1% per step.
     pub fn set_bat_low_level1(&mut self, value: u8) -> Result<(), Error> {
         if value > 15 {
@@ -738,8 +764,7 @@ impl<I2C: I2c> Axp2101<I2C> {
 
     /// Returns [`PowerOnReason`].
     ///
-    /// There's also a register for power off reasons, but it's
-    /// not implemented at the moment.
+    /// This method assumes there's only one power on reason each time.
     pub fn power_on_reason(&mut self) -> Result<PowerOnReason, Error> {
         let raw_value = self.read_u8(REG_POWERON_REASON)?;
         if raw_value.get_bit(0) {
@@ -757,6 +782,87 @@ impl<I2C: I2c> Axp2101<I2C> {
         } else {
             Ok(PowerOnReason::Unknown)
         }
+    }
+
+    /// Returns [`PowerOffReason`]
+    ///
+    /// This method assumes there's only one power off reason each time.
+    pub fn power_off_reason(&mut self) -> Result<PowerOffReason, Error> {
+        let raw_value = self.read_u8(REG_POWEROFF_REASON)?;
+        if raw_value.get_bit(0) {
+            Ok(PowerOffReason::PowerOffKey)
+        } else if raw_value.get_bit(1) {
+            Ok(PowerOffReason::Software)
+        } else if raw_value.get_bit(2) {
+            Ok(PowerOffReason::PowerOffEnMode)
+        } else if raw_value.get_bit(3) {
+            Ok(PowerOffReason::VsysUndervolt)
+        } else if raw_value.get_bit(4) {
+            Ok(PowerOffReason::VbusOvervolt)
+        } else if raw_value.get_bit(5) {
+            Ok(PowerOffReason::DcdcUndervolt)
+        } else if raw_value.get_bit(6) {
+            Ok(PowerOffReason::DcdcOvervolt)
+        } else if raw_value.get_bit(7) {
+            Ok(PowerOffReason::DieOverheat)
+        } else {
+            Ok(PowerOffReason::Unknown)
+        }
+    }
+
+    /// Set `true` to power off when DIE temperature exceeds limit(LEVEL2).
+    ///
+    /// Chip defaults to enabled.
+    pub fn set_die_overheat_poweroff(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_POWEROFF_EN_BEHAVIOR, 2, value)
+    }
+
+    /// Set `true` to power off when PWRON active more than configured OFFLEVEL time.
+    ///
+    /// This config is also referred as `btn_pwroff_en`
+    ///
+    /// Chip defaults to efuse value.
+    pub fn set_pwron_key_poweroff(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_POWEROFF_EN_BEHAVIOR, 1, value)
+    }
+
+    /// Sets the actual behavior of [`Axp2101::set_pwron_key_poweroff`].
+    ///
+    /// PMU will automatically restart, if set to `true`.
+    ///
+    /// Chip defaults to efuse value.
+    pub fn set_pwron_key_poweroff_restart(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_POWEROFF_EN_BEHAVIOR, 0, value)
+    }
+
+    /// Sets 120%(130%) over voltage protection for all DCDC outputs.
+    pub fn set_dcdc_ovp(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_DCDC_PROTECT, 5, value)
+    }
+
+    /// Sets 85% under voltage protection for DCDC5.
+    pub fn set_dcdc5_uvp(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_DCDC_PROTECT, 4, value)
+    }
+
+    /// Sets 85% under voltage protection for DCDC4.
+    pub fn set_dcdc4_uvp(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_DCDC_PROTECT, 3, value)
+    }
+
+    /// Sets 85% under voltage protection for DCDC3.
+    pub fn set_dcdc3_uvp(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_DCDC_PROTECT, 2, value)
+    }
+
+    /// Sets 85% under voltage protection for DCDC2.
+    pub fn set_dcdc2_uvp(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_DCDC_PROTECT, 1, value)
+    }
+
+    /// Sets 85% under voltage protection for DCDC1.
+    pub fn set_dcdc1_uvp(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_DCDC_PROTECT, 0, value)
     }
 
     /// Returns the battery low threshold voltage triggering the power off in millivolt.
