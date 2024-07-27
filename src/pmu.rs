@@ -37,8 +37,8 @@ pub enum Error {
     UnknownChip(u8),
     /// An I2C error occurred during the transaction.
     I2cError(I2cErrorKind),
-    /// Voltage value exceeds hardware limit.
-    UnsupportedRange,
+    /// Value(voltage, timer length) exceeds hardware limit.
+    ValueOutOfRange,
     /// Failed to parse a value. E.g. failed to process a value read from chip.
     ParseError,
     /// Unsupported action. Something might be not able to be changed.
@@ -59,6 +59,7 @@ impl embedded_hal::digital::Error for Error {
 }
 
 /// Battery current flow direction.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BatteryCurrentDirection {
@@ -69,6 +70,7 @@ pub enum BatteryCurrentDirection {
 }
 
 /// Battery charging status.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BatteryChargingStatus {
@@ -191,6 +193,26 @@ pub enum InputCurrentLimit {
     I2000MA,
 }
 
+/// Watchdog action.
+///
+/// Hardware defaults to [`WatchdogAction::IrqOnly`].
+#[repr(u8)]
+#[derive(IntoPrimitive, FromPrimitive, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum WatchdogAction {
+    /// Only send an IRQ signal.
+    #[num_enum(default)]
+    IrqOnly,
+    /// Send an IRQ signal, and perform a system reset(reset all related PMU registers).
+    /// 
+    /// The registers which have reset condition as "System Reset" will be reseted.
+    IrqSystemReset,
+    /// Pull down PWROK for 1 second, and do what [`WatchdogAction::IrqSystemReset`] does.
+    IrqSystemResetPullPwrok,
+    /// Restart all DCDC/LDO(power off & power on), and do what [`WatchdogAction::IrqSystemResetPullPwrok`] does.
+    IrqFullRestart,
+}
+
 /// Create registers consts, make the code more readable.
 macro_rules! address {
     ($name:ident, $value:literal, $($key:ident, $val:literal),+ $(,)?) => {
@@ -294,7 +316,7 @@ macro_rules! chained_set_voltage {
                                 $($startnext, $endnext, $stepsizenext);*)
     };
     ($self:ident, $val:ident, $vaddr:literal, $vbits:expr, $offset:expr $(;)?) => {
-        Err(Error::UnsupportedRange)
+        Err(Error::ValueOutOfRange)
     };
 }
 
@@ -592,7 +614,7 @@ impl<I2C: I2c> Axp2101<I2C> {
     /// Chip defaults to 4700mV. This field is called `ln_vsys_dpm` in one datasheet.
     pub fn set_min_vsys_linear_charger(&mut self, value: u16) -> Result<(), Error> {
         if value < 4100 || value > 4800 {
-            Err(Error::UnsupportedRange)
+            Err(Error::ValueOutOfRange)
         } else {
             let reg_val = ((value - 4100) / 100) as u8;
             self.write_bits(REG_VSYS_LOW_THRESH, 4..=6, reg_val)
@@ -605,7 +627,7 @@ impl<I2C: I2c> Axp2101<I2C> {
     /// Chip defaults to 4360mV(0b0110)
     pub fn set_vindpm_thresh(&mut self, value: u16) -> Result<(), Error> {
         if value < 3880 || value > 5080 {
-            Err(Error::UnsupportedRange)
+            Err(Error::ValueOutOfRange)
         } else {
             let reg_val = ((value - 3880) / 80) as u8;
             self.write_bits(REG_VIN_LOW_THRESH, 0..=3, reg_val)
@@ -665,6 +687,55 @@ impl<I2C: I2c> Axp2101<I2C> {
         self.write_bit(REG_CHARGER_GAUGE_WATCHDOG_SW, 0, value)
     }
 
+    /// Sets what a watchdog reset triggers.
+    /// 
+    /// Chip defaults to [`WatchdogAction::IrqOnly`].
+    pub fn set_watchdog_action(&mut self, value: WatchdogAction) -> Result<(), Error> {
+        self.write_bits(REG_WATCHDOG_CONTROL, 4..=5, value.into())
+    }
+
+    /// Feeds watchdog.
+    pub fn feed_watchdog(&mut self) -> Result<(), Error> {
+        self.write_bit(REG_WATCHDOG_CONTROL, 3, true)
+    }
+
+    /// Sets TWSI watchdog timer length.
+    /// 
+    /// The actual time length is 2 ** raw_value. For example, write 0 for 1 second,
+    /// 1 for 2 seconds, 4 for 16 seconds.
+    /// 
+    /// The maximum timer length is 128 seconds, corresponding raw value is 7(0b111).
+    pub fn set_watchdog_timer_length(&mut self, value: u8) -> Result<(), Error> {
+        if value > 0b111 {
+            Err(Error::ValueOutOfRange)
+        } else {
+            self.write_bits(REG_WATCHDOG_CONTROL, 0..2, value)
+        }
+    }
+
+    /// Sets low-battery warning level 2.
+    /// 
+    /// From 5% to 20%, both end included, 1% per step.
+    pub fn set_bat_low_level2(&mut self, value: u8) -> Result<(), Error> {
+        if value < 5 || value > 20 {
+            Err(Error::ValueOutOfRange)
+        } else {
+            let reg_val = value - 5;
+            self.write_bits(REG_BAT_LOW_WARN_THRESH, 4..=7, reg_val)
+        }
+    }
+
+    /// Sets low-battery warning level 1.
+    /// 
+    /// From 0% to 15%, both end included, 1% per step.
+    pub fn set_bat_low_level1(&mut self, value: u8) -> Result<(), Error> {
+        if value > 15 {
+            Err(Error::ValueOutOfRange)
+        } else {
+            self.write_bits(REG_BAT_LOW_WARN_THRESH, 0..=3, value)
+        }
+    }
+
     /// Returns [`PowerOnReason`].
     ///
     /// There's also a register for power off reasons, but it's
@@ -699,7 +770,7 @@ impl<I2C: I2c> Axp2101<I2C> {
     /// The range is [2600mV, 3300mV], total 8 steps.
     pub fn set_vbat_poweroff_threshold(&mut self, value: u16) -> Result<(), Error> {
         if value < 2600 || value > 3300 {
-            Err(Error::UnsupportedRange)
+            Err(Error::ValueOutOfRange)
         } else {
             let reg_val = ((value - 2600) / 100) as u8;
             self.write_bits(REG_POWEROFF_VBAT_LOW_THRESH, 0..=2, reg_val)
