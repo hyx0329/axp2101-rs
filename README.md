@@ -36,6 +36,26 @@ RTCLDO2 | NO | YES | possibly fixed output, nothing to implement
 
 *DLDO1 and DLDO2 defaults to switchable direct output route for DCDC1 and DCDC4, and may be customized(in factory, through efuse) as LDO outputs.*
 
+## Example
+
+```rust
+// Assume there's one i2c struct having [`embedded_hal::i2c::I2c`] implemented.
+use axp2101::pmu::{Axp2101, Dcdc1};
+
+fn main() {
+    /* snippet */
+    let mut axp = Axp2101::new(i2c);
+    let mut dcdc1: Dcdc1 = axp.into();
+    // or this way
+    // let mut dcdc1 = Dcdc1{ axp: axp };
+    let _ = dcdc1.set_voltage(3300);
+    let _ = dcdc1.enable();
+
+    // take it back
+    let mut axp: Axp2101<_> = dcdc1.into();
+}
+```
+
 ## Other devices
 
 - M5Stack Core2 1.1
