@@ -3,5 +3,4 @@
 #![warn(unsafe_code)]
 #![no_std]
 
-mod error;
-mod pmu;
+pub mod pmu;

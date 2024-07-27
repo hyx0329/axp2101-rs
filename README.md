@@ -11,13 +11,13 @@ on the customization of chip, and they are NOT available by default.
 
 Currently implementation status of the voltage regulators:
 
-Feature | Implemented | Customed | Notes
+Feature | Implemented | Customized | Notes
 :- | :- | :- | :-
 DCDC1 | YES
 DCDC2 | YES
 DCDC3 | YES
 DCDC4 | YES
-DCDC5 | YES | | conflict with GPIO1/RTCLDO2
+DCDC5 | YES | YES | conflict with GPIO1/RTCLDO2
 ALDO1 | YES
 ALDO2 | YES
 ALDO3 | YES
@@ -25,17 +25,16 @@ ALDO4 | YES
 BLDO1 | YES
 BLDO2 | YES
 CPUSLDO | YES | | dependent on DC4
-DLDO1(3.4V range) | YES | YES | default software implementation, depend on DCDC1, 100mV/step
-DLDO1(1.4V range) | YES | YES | depend on DCDC1, 50mV/step
-DLDO2(3.4V range) | YES | YES | default software implementation, depend on DCDC4, 100mV/step
-DLDO2(1.4V range) | YES | YES | depend on DCDC4, 50mV/step
+DLDO1(0.5V to 3.4V) | YES | YES | depend on(not exceed) DCDC1, 100mV/step
+DLDO2(0.5V to 1.4V) | YES | YES | depend on(not exceed) DCDC4, 50mV/step
 GPIO1(REG 0x1B) | NO | YES | hardware may support Hi-Z and LOW output
 RTCLDO1 | NO |  | fixed output, nothing to implement
 RTCLDO2 | NO | YES | possibly fixed output, nothing to implement
 
-*DLDO1 and DLDO2 may be customized(in factory) as control switches for DCDC1 and DCDC4.*
+**All DCDC/LDO's default voltage and power on sequence may be customized!**
+**Not knowing those values may destroy your device!**
 
-To use DLDO1/DLDO2's 1.4V range mode, enable feature `dldo1-1v4` and `dldo2-1v4` respectively.
+*DLDO1 and DLDO2 defaults to switchable direct output route for DCDC1 and DCDC4, and may be customized(in factory, through efuse) as LDO outputs.*
 
 ## Other devices
 
@@ -44,8 +43,10 @@ To use DLDO1/DLDO2's 1.4V range mode, enable feature `dldo1-1v4` and `dldo2-1v4`
     - DLDO2 is NOT used
     - DCDC5/GPIO1/RTCLDO2 is NOT used
     - DCDC2 and DCDC4 are NOT used
+    - **RTCLDO1 is 3.3V**, and the built-in RTC battery is not a backup for PMU.
 
 ## References
 
+- [M5Stack Core2 1.1](https://docs.m5stack.com/en/core/Core2%20v1.1)
 - [XPowersLib](https://github.com/lewisxhe/XPowersLib)
 - [AXP2101 stamp module](https://oshwhub.com/mondraker/axp2101_2023-11-18_20-15-19)
