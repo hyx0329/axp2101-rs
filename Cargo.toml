@@ -15,6 +15,4 @@ paste = "1.0.15"
 
 [features]
 defmt = ["dep:defmt"]
-dldo1-1v4 = []
-dldo2-1v4 = []
 std = ["num_enum/std"]
