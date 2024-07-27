@@ -239,6 +239,49 @@ pub enum WatchdogAction {
     IrqFullRestart,
 }
 
+/// How CHGLED is controlled.
+#[repr(u8)]
+#[derive(IntoPrimitive, FromPrimitive, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum ChargeLedControl {
+    /// Auto pattern A.
+    /// - HiZ: No charging
+    /// - 25% 1Hz pull low/Hi-Z jump: Charger internal abnormal alarm
+    ///     - timeout
+    ///     - die/battery overheat
+    /// - 25% 4Hz pull low/Hi-Z jump: Input source or battery over voltage
+    /// - Pulled LOW: Charging
+    TypeA,
+    /// Auto pattern B.
+    /// - HiZ: No VBUS, on battery.
+    /// - 25% 1Hz pull low/Hi-Z jump: Charging
+    /// - 25% 4Hz pull low/Hi-Z jump: Alarm
+    ///     - over voltage
+    ///     - overheat
+    ///     - timeout
+    /// - Pulled LOW: on VBUS, charge finished or no battery present
+    TypeB,
+    /// Manual control via register 0x69 field chgled_out_ctrl()
+    #[num_enum(default)]
+    Manual,
+}
+
+/// Predefined CHGLED patterns.
+#[repr(u8)]
+#[derive(IntoPrimitive, FromPrimitive, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum ChargeLedPattern {
+    /// Hi-Z
+    #[num_enum(default)]
+    HiZ,
+    /// Low/Hi-Z 25%/75% duty 1Hz
+    OneHertz,
+    /// Low/Hi-Z 25%/75% duty 4Hz
+    FourHertz,
+    /// Pulled low
+    Low,
+}
+
 /// Create registers consts, make the code more readable.
 macro_rules! address {
     ($name:ident, $value:literal, $($key:ident, $val:literal),+ $(,)?) => {
@@ -272,7 +315,7 @@ address!{
     REG_POWEROFF_EN_BEHAVIOR,       0x22,
     REG_DCDC_PROTECT,               0x23,
     REG_POWEROFF_VBAT_LOW_THRESH,   0x24,
-    REG_PWROK_CONFIG_PWROFF_SEQ,    0x25,
+    REG_POWER_TIMING,               0x25,
     REG_SLEEP_WAKE_CONFIG,          0x26,
     REG_KEY_EVENT_TIME,             0x27,
     REG_FAST_PWRON_CONFIG0,         0x28,
@@ -883,6 +926,9 @@ impl<I2C: I2c> Axp2101<I2C> {
         }
     }
 
+    // TODO: REG 0x25 power timing implementation
+    // TODO: REG 0x26 sleep implementation
+
     /// Returns [`KeyDurationIrq`], the time duration PWRON key need to be active to trigger an IRQ event.
     pub fn key_duration_irq(&mut self) -> Result<KeyDurationIrq, Error> {
         let result: KeyDurationIrq = self.read_u8(REG_KEY_EVENT_TIME)?.get_bits(4..=5).into();
@@ -915,6 +961,8 @@ impl<I2C: I2c> Axp2101<I2C> {
     pub fn set_key_duration_power_on(&mut self, value: KeyDurationPowerOn) -> Result<(), Error> {
         self.write_bits(REG_KEY_EVENT_TIME, 0..=1, value.into())
     }
+
+    // TODO: REG 0x27 fast power on implementation
 
     /// Returns whether DIE temperature ADC channel enabled.
     pub fn adc_status_die_temperature(&mut self) -> Result<bool, Error> {
@@ -961,6 +1009,8 @@ impl<I2C: I2c> Axp2101<I2C> {
     pub fn set_adc_status_battery_voltage(&mut self, value: bool) -> Result<(), Error> {
         self.write_bit(REG_ADC_CONTROL, 0, value)
     }
+
+    // TODO: General purpose ADC implementation
 
     /// Reads battery voltage, in millivolts.
     pub fn battery_voltage(&mut self) -> Result<u16, Error> {
@@ -1021,10 +1071,33 @@ impl<I2C: I2c> Axp2101<I2C> {
         Ok(())
     }
 
+    // TODO: IRQ settings and handling
+
+    // TODO: A lot.
     // TS(battery Temperature Sensor) control is to be implemented.
     // Li-bat charger controls(current, voltage) are to be implemented.
     // Button bat charger controls
-    // Battery percentage
+
+    /// Sets whether to enable CHGLED.
+    pub fn set_chgled_en(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_CHGLED_CONTROL, 0, value)
+    }
+
+    /// Sets CHGLED pin(normally on-board LED) control source.
+    pub fn set_chgled_control(&mut self, value: ChargeLedControl) -> Result<(), Error> {
+        self.write_bits(REG_CHGLED_CONTROL, 1..=2, value.into())
+    }
+
+    /// Sets CHGLED pin's status manually.
+    pub fn set_chgled_manually(&mut self, value: ChargeLedPattern) -> Result<(), Error> {
+        // self.set_chgled_control(ChargeLedControl::Manual)?;
+        self.write_bits(REG_CHGLED_CONTROL, 4..=5, value.into())
+    }
+
+    /// Returns battery percentage.
+    pub fn battery_percent(&mut self) -> Result<u8, Error> {
+        self.read_u8(REG_BATTERY_PERCENT)
+    }
 
     fn read_u8(&mut self, reg: u8) -> Result<u8, Error> {
         let mut buf: [u8; 1] = [0; 1];
