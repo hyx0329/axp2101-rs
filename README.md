@@ -70,3 +70,7 @@ fn main() {
 - [M5Stack Core2 1.1](https://docs.m5stack.com/en/core/Core2%20v1.1)
 - [XPowersLib](https://github.com/lewisxhe/XPowersLib)
 - [AXP2101 stamp module](https://oshwhub.com/mondraker/axp2101_2023-11-18_20-15-19)
+
+## License
+
+This project is released under the MIT license.
