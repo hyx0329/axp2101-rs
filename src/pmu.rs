@@ -4,6 +4,7 @@
 //!
 //! - Datasheet from M5Stack: <https://m5stack.oss-cn-shenzhen.aliyuncs.com/resource/docs/products/core/Core2%20v1.1/axp2101.pdf>
 //! - Dev pack from a reseller(need free account) on OSHWHUB: <https://oshwhub.com/mondraker/axp2101_2023-11-18_20-15-19>
+//! - AXP2585 shares a similar register layout: <https://bbs.aw-ol.com/assets/uploads/files/1650363815445-axp2585-datasheet-v1.2.pdf>
 //!
 //! The datasheet contains a lot of errors/contradictions! Be careful!
 //!
@@ -17,11 +18,11 @@
 //!
 
 use core::ops::RangeBounds;
-
 use embedded_hal::i2c::{Error as I2cError, ErrorKind as I2cErrorKind, I2c};
-
 use bit_field::BitField;
 use num_enum::{FromPrimitive, IntoPrimitive};
+
+use crate::irq::Axp2101IrqReason;
 
 /// AXP PMU I2C address, it's same for several AXP chips.
 const AXP_CHIP_ADDR: u8 = 0x34;
@@ -1047,25 +1048,125 @@ impl<I2C: I2c> Axp2101<I2C> {
         Ok(raw_value & 0x3fff)
     }
 
-    /// Clear all IRQ status bits.
+    /// Clears all IRQ status bits.
     pub fn irq_clear_all(&mut self) -> Result<(), Error> {
         let buf: [u8; 4] = [REG_IRQ_STATUS0, 0xFF, 0xFF, 0xFF];
         Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
     }
 
-    /// Enable all IRQ signals.
+    /// Enables all IRQ signals.
     pub fn irq_enable_all(&mut self) -> Result<(), Error> {
         let buf: [u8; 4] = [REG_IRQ_ENABLE0, 0xFF, 0xFF, 0xFF];
         Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
     }
 
-    /// Disable all IRQ signals.
+    /// Disables all IRQ signals.
     pub fn irq_disable_all(&mut self) -> Result<(), Error> {
         let buf: [u8; 4] = [REG_IRQ_ENABLE0, 0, 0, 0];
         Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
     }
 
-    // TODO: IRQ settings and handling
+    /// Gets raw IRQ config registers.
+    pub fn get_irq_config_raw(&mut self) -> Result<[u8; 3], Error> {
+        let mut buf: [u8; 3] = [0, 0, 0];
+        self.i2c.write_read(AXP_CHIP_ADDR, &[REG_IRQ_ENABLE0], &mut buf)?;
+        Ok(buf)
+    }
+
+    /// Sets raw IRQ config registers.
+    pub fn set_irq_config_raw(&mut self, buf: &[u8]) -> Result<(), Error> {
+        if buf.len() != 3 {
+            Err(Error::Other)
+        } else {
+            let write_buf: [u8; 4] = [REG_IRQ_ENABLE0, buf[0], buf[1], buf[2]];
+            Ok(self.i2c.write(AXP_CHIP_ADDR, &write_buf)?)
+        }
+    }
+
+    /// Gets current IRQ reason and clear it.
+    /// 
+    /// This driver assumes there's only exactly one IRQ reason at a time.
+    pub fn irq_reason(&mut self) -> Result<Option<Axp2101IrqReason>, Error> {
+        let mut buf: [u8; 3] = [0, 0, 0];
+        self.i2c.write_read(AXP_CHIP_ADDR, &[REG_IRQ_ENABLE0], &mut buf)?;
+        // to clear an interrupt bit, write 1 to it.
+        // we don't want to reset other bits.
+        if buf[0] & 0b10000000 > 0 {
+            self.write_u8(REG_IRQ_STATUS0, 0b10000000)?;
+            Ok(Some(Axp2101IrqReason::BatteryPercentWarnLevel2))
+        } else if buf[0] & 0b01000000 > 0 {
+            self.write_u8(REG_IRQ_STATUS0, 0b01000000)?;
+            Ok(Some(Axp2101IrqReason::BatteryPercentWarnLevel1))
+        } else if buf[0] & 0b00100000 > 0 {
+            self.write_u8(REG_IRQ_STATUS0, 0b00100000)?;
+            Ok(Some(Axp2101IrqReason::GaugeWatchdogTimeout))
+        } else if buf[0] & 0b00010000 > 0 {
+            self.write_u8(REG_IRQ_STATUS0, 0b00010000)?;
+            Ok(Some(Axp2101IrqReason::GaugeNewSoc))
+        } else if buf[0] & 0b00001000 > 0 {
+            self.write_u8(REG_IRQ_STATUS0, 0b00001000)?;
+            Ok(Some(Axp2101IrqReason::BatteryOverheatCharging))
+        } else if buf[0] & 0b00000100 > 0 {
+            self.write_u8(REG_IRQ_STATUS0, 0b00000100)?;
+            Ok(Some(Axp2101IrqReason::BatteryUnderheatCharging))
+        } else if buf[0] & 0b00000010 > 0 {
+            self.write_u8(REG_IRQ_STATUS0, 0b00000010)?;
+            Ok(Some(Axp2101IrqReason::BatteryOverheatDischarging))
+        } else if buf[0] & 0b00000001 > 0 {
+            self.write_u8(REG_IRQ_STATUS0, 0b00000001)?;
+            Ok(Some(Axp2101IrqReason::BatteryUnderheatDischarging))
+        } else if buf[1] & 0b10000000 > 0 {
+            self.write_u8(REG_IRQ_STATUS1, 0b10000000)?;
+            Ok(Some(Axp2101IrqReason::VbusInserted))
+        } else if buf[1] & 0b01000000 > 0 {
+            self.write_u8(REG_IRQ_STATUS1, 0b01000000)?;
+            Ok(Some(Axp2101IrqReason::VbusRemoved))
+        } else if buf[1] & 0b00100000 > 0 {
+            self.write_u8(REG_IRQ_STATUS1, 0b00100000)?;
+            Ok(Some(Axp2101IrqReason::BatteryInserted))
+        } else if buf[1] & 0b00010000 > 0 {
+            self.write_u8(REG_IRQ_STATUS1, 0b00010000)?;
+            Ok(Some(Axp2101IrqReason::BatteryRemoved))
+        } else if buf[1] & 0b00001000 > 0 {
+            self.write_u8(REG_IRQ_STATUS1, 0b00001000)?;
+            Ok(Some(Axp2101IrqReason::PowerKeyEventShort))
+        } else if buf[1] & 0b00000100 > 0 {
+            self.write_u8(REG_IRQ_STATUS1, 0b00000100)?;
+            Ok(Some(Axp2101IrqReason::PowerKeyEventLong))
+        } else if buf[1] & 0b00000010 > 0 {
+            self.write_u8(REG_IRQ_STATUS1, 0b00000010)?;
+            Ok(Some(Axp2101IrqReason::PowerKeyEdgeNegative))
+        } else if buf[1] & 0b00000001 > 0 {
+            self.write_u8(REG_IRQ_STATUS1, 0b00000001)?;
+            Ok(Some(Axp2101IrqReason::PowerKeyEdgePositive))
+        } else if buf[2] & 0b10000000 > 0 {
+            self.write_u8(REG_IRQ_STATUS2, 0b10000000)?;
+            Ok(Some(Axp2101IrqReason::WatchdogTimer))
+        } else if buf[2] & 0b01000000 > 0 {
+            self.write_u8(REG_IRQ_STATUS2, 0b01000000)?;
+            Ok(Some(Axp2101IrqReason::LdoOvercurrent))
+        } else if buf[2] & 0b00100000 > 0 {
+            self.write_u8(REG_IRQ_STATUS2, 0b00100000)?;
+            Ok(Some(Axp2101IrqReason::BatfetOvercurrent))
+        } else if buf[2] & 0b00010000 > 0 {
+            self.write_u8(REG_IRQ_STATUS2, 0b00010000)?;
+            Ok(Some(Axp2101IrqReason::ChargingDone))
+        } else if buf[2] & 0b00001000 > 0 {
+            self.write_u8(REG_IRQ_STATUS2, 0b00001000)?;
+            Ok(Some(Axp2101IrqReason::ChargingStart))
+        } else if buf[2] & 0b00000100 > 0 {
+            self.write_u8(REG_IRQ_STATUS2, 0b00000100)?;
+            Ok(Some(Axp2101IrqReason::DieOverheat))
+        } else if buf[2] & 0b00000010 > 0 {
+            self.write_u8(REG_IRQ_STATUS2, 0b00000010)?;
+            Ok(Some(Axp2101IrqReason::ChargerSafetyTimer))
+        } else if buf[2] & 0b00000001 > 0 {
+            self.write_u8(REG_IRQ_STATUS2, 0b00000001)?;
+            Ok(Some(Axp2101IrqReason::BatteryOvervoltage))
+        } else {
+            Ok(None)
+        }
+    }
 
     // TODO: A lot.
     // TS(battery Temperature Sensor) control is to be implemented.

@@ -4,3 +4,4 @@
 #![no_std]
 
 pub mod pmu;
+pub mod irq;
