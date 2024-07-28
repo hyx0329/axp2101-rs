@@ -1049,26 +1049,20 @@ impl<I2C: I2c> Axp2101<I2C> {
 
     /// Clear all IRQ status bits.
     pub fn irq_clear_all(&mut self) -> Result<(), Error> {
-        let _ = self.write_u8(REG_IRQ_STATUS0, 0xFF)?;
-        let _ = self.write_u8(REG_IRQ_STATUS1, 0xFF)?;
-        let _ = self.write_u8(REG_IRQ_STATUS2, 0xFF)?;
-        Ok(())
+        let buf: [u8; 4] = [REG_IRQ_STATUS0, 0xFF, 0xFF, 0xFF];
+        Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
     }
 
     /// Enable all IRQ signals.
     pub fn irq_enable_all(&mut self) -> Result<(), Error> {
-        let _ = self.write_u8(REG_IRQ_ENABLE0, 0xFF)?;
-        let _ = self.write_u8(REG_IRQ_ENABLE1, 0xFF)?;
-        let _ = self.write_u8(REG_IRQ_ENABLE2, 0xFF)?;
-        Ok(())
+        let buf: [u8; 4] = [REG_IRQ_ENABLE0, 0xFF, 0xFF, 0xFF];
+        Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
     }
 
     /// Disable all IRQ signals.
     pub fn irq_disable_all(&mut self) -> Result<(), Error> {
-        let _ = self.write_u8(REG_IRQ_ENABLE0, 0)?;
-        let _ = self.write_u8(REG_IRQ_ENABLE1, 0)?;
-        let _ = self.write_u8(REG_IRQ_ENABLE2, 0)?;
-        Ok(())
+        let buf: [u8; 4] = [REG_IRQ_ENABLE0, 0, 0, 0];
+        Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
     }
 
     // TODO: IRQ settings and handling
@@ -1120,8 +1114,7 @@ impl<I2C: I2c> Axp2101<I2C> {
     }
 
     fn write_u8(&mut self, reg: u8, value: u8) -> Result<(), Error> {
-        self.i2c.write(AXP_CHIP_ADDR, &[reg, value])?;
-        Ok(())
+        Ok(self.i2c.write(AXP_CHIP_ADDR, &[reg, value])?)
     }
 
     fn write_bit(&mut self, reg: u8, bit: usize, value: bool) -> Result<(), Error> {
