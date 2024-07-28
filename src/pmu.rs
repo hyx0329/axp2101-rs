@@ -17,17 +17,16 @@
 //! Not every PMU feature is implemented. The register addresss consts not used indicate the features not implemented.
 //!
 
+use bit_field::BitField;
 use core::ops::RangeBounds;
 use embedded_hal::i2c::{Error as I2cError, ErrorKind as I2cErrorKind, I2c};
-use bit_field::BitField;
 use num_enum::{FromPrimitive, IntoPrimitive};
 
+#[allow(unused_imports)]
 use crate::irq::Axp2101IrqReason;
 
 /// AXP PMU I2C address, it's same for several AXP chips.
 const AXP_CHIP_ADDR: u8 = 0x34;
-/// AXP2101 chip ID
-const AXP2101_ID: u8 = 0b01_0111;
 
 /// AXP PMU errors.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -286,6 +285,7 @@ pub enum ChargeLedPattern {
 /// Create registers consts, make the code more readable.
 macro_rules! address {
     ($name:ident, $value:literal, $($key:ident, $val:literal),+ $(,)?) => {
+        #[allow(dead_code)]
         const $name: u8 = $value;
         address!($($key, $val),+);
     };
@@ -485,14 +485,13 @@ impl<I2C: I2c> Axp2101<I2C> {
         self.i2c
     }
 
-    /// Check bus connection and verify chip ID. Returns chip version.
-    pub fn check(&mut self) -> Result<u8, Error> {
-        let chip_info = self.read_u8(REG_CHIP_ID)?;
-        let chip_id = chip_info.get_bits(0..=3) | (chip_info.get_bits(6..=7) << 4);
-        match chip_id {
-            AXP2101_ID => Ok(chip_info.get_bits(4..=5)),
-            _ => Err(Error::UnknownChip(chip_info)),
-        }
+    /// Read chip ID.
+    ///
+    /// It's revealed in the datasheet provided by M5Stack. On M5Stack Core2 1.1, the raw
+    /// reading is `74`(`0b01001010`), while the datasheet says it should be `0b01XX0111`.
+    /// It may vary on different chip variants(e.g. customized ones).
+    pub fn chip_id(&mut self) -> Result<u8, Error> {
+        self.read_u8(REG_CHIP_ID)
     }
 
     /// Returns `true` if external power connected.
@@ -1069,7 +1068,8 @@ impl<I2C: I2c> Axp2101<I2C> {
     /// Gets raw IRQ config registers.
     pub fn get_irq_config_raw(&mut self) -> Result<[u8; 3], Error> {
         let mut buf: [u8; 3] = [0, 0, 0];
-        self.i2c.write_read(AXP_CHIP_ADDR, &[REG_IRQ_ENABLE0], &mut buf)?;
+        self.i2c
+            .write_read(AXP_CHIP_ADDR, &[REG_IRQ_ENABLE0], &mut buf)?;
         Ok(buf)
     }
 
@@ -1083,89 +1083,14 @@ impl<I2C: I2c> Axp2101<I2C> {
         }
     }
 
-    /// Gets current IRQ reason and clear it.
-    /// 
-    /// This driver assumes there's only exactly one IRQ reason at a time.
-    pub fn irq_reason(&mut self) -> Result<Option<Axp2101IrqReason>, Error> {
+    // TODO: read raw IRQ registers and provide an iterable interface.
+
+    /// Gets raw IRQ status bits.
+    pub fn get_irq_bits_raw(&mut self) -> Result<[u8; 3], Error> {
         let mut buf: [u8; 3] = [0, 0, 0];
-        self.i2c.write_read(AXP_CHIP_ADDR, &[REG_IRQ_ENABLE0], &mut buf)?;
-        // to clear an interrupt bit, write 1 to it.
-        // we don't want to reset other bits.
-        if buf[0] & 0b10000000 > 0 {
-            self.write_u8(REG_IRQ_STATUS0, 0b10000000)?;
-            Ok(Some(Axp2101IrqReason::BatteryPercentWarnLevel2))
-        } else if buf[0] & 0b01000000 > 0 {
-            self.write_u8(REG_IRQ_STATUS0, 0b01000000)?;
-            Ok(Some(Axp2101IrqReason::BatteryPercentWarnLevel1))
-        } else if buf[0] & 0b00100000 > 0 {
-            self.write_u8(REG_IRQ_STATUS0, 0b00100000)?;
-            Ok(Some(Axp2101IrqReason::GaugeWatchdogTimeout))
-        } else if buf[0] & 0b00010000 > 0 {
-            self.write_u8(REG_IRQ_STATUS0, 0b00010000)?;
-            Ok(Some(Axp2101IrqReason::GaugeNewSoc))
-        } else if buf[0] & 0b00001000 > 0 {
-            self.write_u8(REG_IRQ_STATUS0, 0b00001000)?;
-            Ok(Some(Axp2101IrqReason::BatteryOverheatCharging))
-        } else if buf[0] & 0b00000100 > 0 {
-            self.write_u8(REG_IRQ_STATUS0, 0b00000100)?;
-            Ok(Some(Axp2101IrqReason::BatteryUnderheatCharging))
-        } else if buf[0] & 0b00000010 > 0 {
-            self.write_u8(REG_IRQ_STATUS0, 0b00000010)?;
-            Ok(Some(Axp2101IrqReason::BatteryOverheatDischarging))
-        } else if buf[0] & 0b00000001 > 0 {
-            self.write_u8(REG_IRQ_STATUS0, 0b00000001)?;
-            Ok(Some(Axp2101IrqReason::BatteryUnderheatDischarging))
-        } else if buf[1] & 0b10000000 > 0 {
-            self.write_u8(REG_IRQ_STATUS1, 0b10000000)?;
-            Ok(Some(Axp2101IrqReason::VbusInserted))
-        } else if buf[1] & 0b01000000 > 0 {
-            self.write_u8(REG_IRQ_STATUS1, 0b01000000)?;
-            Ok(Some(Axp2101IrqReason::VbusRemoved))
-        } else if buf[1] & 0b00100000 > 0 {
-            self.write_u8(REG_IRQ_STATUS1, 0b00100000)?;
-            Ok(Some(Axp2101IrqReason::BatteryInserted))
-        } else if buf[1] & 0b00010000 > 0 {
-            self.write_u8(REG_IRQ_STATUS1, 0b00010000)?;
-            Ok(Some(Axp2101IrqReason::BatteryRemoved))
-        } else if buf[1] & 0b00001000 > 0 {
-            self.write_u8(REG_IRQ_STATUS1, 0b00001000)?;
-            Ok(Some(Axp2101IrqReason::PowerKeyEventShort))
-        } else if buf[1] & 0b00000100 > 0 {
-            self.write_u8(REG_IRQ_STATUS1, 0b00000100)?;
-            Ok(Some(Axp2101IrqReason::PowerKeyEventLong))
-        } else if buf[1] & 0b00000010 > 0 {
-            self.write_u8(REG_IRQ_STATUS1, 0b00000010)?;
-            Ok(Some(Axp2101IrqReason::PowerKeyEdgeNegative))
-        } else if buf[1] & 0b00000001 > 0 {
-            self.write_u8(REG_IRQ_STATUS1, 0b00000001)?;
-            Ok(Some(Axp2101IrqReason::PowerKeyEdgePositive))
-        } else if buf[2] & 0b10000000 > 0 {
-            self.write_u8(REG_IRQ_STATUS2, 0b10000000)?;
-            Ok(Some(Axp2101IrqReason::WatchdogTimer))
-        } else if buf[2] & 0b01000000 > 0 {
-            self.write_u8(REG_IRQ_STATUS2, 0b01000000)?;
-            Ok(Some(Axp2101IrqReason::LdoOvercurrent))
-        } else if buf[2] & 0b00100000 > 0 {
-            self.write_u8(REG_IRQ_STATUS2, 0b00100000)?;
-            Ok(Some(Axp2101IrqReason::BatfetOvercurrent))
-        } else if buf[2] & 0b00010000 > 0 {
-            self.write_u8(REG_IRQ_STATUS2, 0b00010000)?;
-            Ok(Some(Axp2101IrqReason::ChargingDone))
-        } else if buf[2] & 0b00001000 > 0 {
-            self.write_u8(REG_IRQ_STATUS2, 0b00001000)?;
-            Ok(Some(Axp2101IrqReason::ChargingStart))
-        } else if buf[2] & 0b00000100 > 0 {
-            self.write_u8(REG_IRQ_STATUS2, 0b00000100)?;
-            Ok(Some(Axp2101IrqReason::DieOverheat))
-        } else if buf[2] & 0b00000010 > 0 {
-            self.write_u8(REG_IRQ_STATUS2, 0b00000010)?;
-            Ok(Some(Axp2101IrqReason::ChargerSafetyTimer))
-        } else if buf[2] & 0b00000001 > 0 {
-            self.write_u8(REG_IRQ_STATUS2, 0b00000001)?;
-            Ok(Some(Axp2101IrqReason::BatteryOvervoltage))
-        } else {
-            Ok(None)
-        }
+        self.i2c
+            .write_read(AXP_CHIP_ADDR, &[REG_IRQ_STATUS0], &mut buf)?;
+        Ok(buf)
     }
 
     // TODO: A lot.
@@ -1209,7 +1134,7 @@ impl<I2C: I2c> Axp2101<I2C> {
             Ok(_) => {
                 let number = ((buf[0] as u16) << 8) + buf[1] as u16;
                 Ok(number)
-            },
+            }
             Err(e) => Err(e.into()),
         }
     }
