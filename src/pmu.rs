@@ -1014,37 +1014,37 @@ impl<I2C: I2c> Axp2101<I2C> {
 
     /// Reads battery voltage, in millivolts.
     pub fn battery_voltage(&mut self) -> Result<u16, Error> {
-        let value_h = self.read_u8(REG_ADC_VBAT_H)?.get_bits(0..=5) as u16;
-        let value_l = self.read_u8(REG_ADC_VBAT_L)? as u16;
-        Ok(value_h << 8 + value_l)
+        let raw_value = self.read_u16(REG_ADC_VBAT_H)?;
+        // 14 bit
+        Ok(raw_value & 0x3fff)
     }
 
     /// Reads raw TS pin ADC value, the unit is 0.5mV.
     pub fn ts_pin_voltage_raw(&mut self) -> Result<u16, Error> {
-        let value_h = self.read_u8(REG_ADC_TS_H)?.get_bits(0..=5) as u16;
-        let value_l = self.read_u8(REG_ADC_TS_L)? as u16;
-        Ok(value_h << 8 + value_l)
+        let raw_value = self.read_u16(REG_ADC_TS_H)?;
+        // 14 bit
+        Ok(raw_value & 0x3fff)
     }
 
     /// Reads VBUS voltage, in millivolts.
     pub fn vbus_voltage(&mut self) -> Result<u16, Error> {
-        let value_h = self.read_u8(REG_ADC_VBUS_H)?.get_bits(0..=5) as u16;
-        let value_l = self.read_u8(REG_ADC_VBUS_L)? as u16;
-        Ok(value_h << 8 + value_l)
+        let raw_value = self.read_u16(REG_ADC_VBUS_H)?;
+        // 14 bit
+        Ok(raw_value & 0x3fff)
     }
 
     /// Reads system voltage, in millivolts.
     pub fn vsys_voltage(&mut self) -> Result<u16, Error> {
-        let value_h = self.read_u8(REG_ADC_VSYS_H)?.get_bits(0..=5) as u16;
-        let value_l = self.read_u8(REG_ADC_VSYS_L)? as u16;
-        Ok(value_h << 8 + value_l)
+        let raw_value = self.read_u16(REG_ADC_VSYS_H)?;
+        // 14 bit
+        Ok(raw_value & 0x3fff)
     }
 
     /// Reads raw value of DIE temperature sensor voltage, in 0.1 millivolts.
     pub fn tdie_voltage_raw(&mut self) -> Result<u16, Error> {
-        let value_h = self.read_u8(REG_ADC_TDIE_H)?.get_bits(0..=5) as u16;
-        let value_l = self.read_u8(REG_ADC_TDIE_L)? as u16;
-        Ok(value_h << 8 + value_l)
+        let raw_value = self.read_u16(REG_ADC_TDIE_H)?;
+        // 14 bit
+        Ok(raw_value & 0x3fff)
     }
 
     /// Clear all IRQ status bits.
@@ -1104,6 +1104,17 @@ impl<I2C: I2c> Axp2101<I2C> {
 
         match self.i2c.write_read(AXP_CHIP_ADDR, &[reg], &mut buf) {
             Ok(_) => Ok(buf[0]),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn read_u16(&mut self, reg: u8) -> Result<u16, Error> {
+        let mut buf: [u8; 2] = [0; 2];
+        match self.i2c.write_read(AXP_CHIP_ADDR, &[reg], &mut buf) {
+            Ok(_) => {
+                let number = ((buf[0] as u16) << 8) + buf[1] as u16;
+                Ok(number)
+            },
             Err(e) => Err(e.into()),
         }
     }
@@ -1260,6 +1271,21 @@ mod test {
         let mut axp = Axp2101::new(i2c);
         let _ = axp.write_bits(0, ..=3, 0b1101);
         assert_eq!(0b0101_1101, data[1]);
+    }
+
+    #[test]
+    fn test_axp2101_read_u16() {
+        let mut data = [00, 0xAB, 0xCD];
+        let addr = AXP_CHIP_ADDR;
+        let i2c = FakeI2c {
+            address: addr,
+            data: &mut data,
+        };
+        let mut axp = Axp2101::new(i2c);
+        match axp.read_u16(0) {
+            Ok(value) => assert_eq!(0xabcd, value),
+            Err(e) => assert!(true, "Error: {:?}", e),
+        };
     }
 
     #[test]
