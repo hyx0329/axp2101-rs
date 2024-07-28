@@ -40,12 +40,13 @@ RTCLDO2 | NO | YES | possibly fixed output, nothing to implement
 
 ```rust
 // Assume there's one i2c struct having [`embedded_hal::i2c::I2c`] implemented.
-use axp2101::pmu::{Axp2101, Dcdc1};
+use axp2101::pmu::{Axp2101, Dcdc1, Regulator};
 
 fn main() {
-    /* snippet */
+    /* preparations */
+
     let mut axp = Axp2101::new(i2c);
-    let mut dcdc1: Dcdc1 = axp.into();
+    let mut dcdc1: Dcdc1<_> = axp.into();
     // or this way
     // let mut dcdc1 = Dcdc1{ axp: axp };
     let _ = dcdc1.set_voltage(3300);
@@ -53,17 +54,38 @@ fn main() {
 
     // take it back
     let mut axp: Axp2101<_> = dcdc1.into();
+
+    if let Ok(value) = axp.battery_percent() {
+        log::info!("Battery percent: {}%", value)
+    }
+    if let Ok(value) = axp.battery_voltage() {
+        log::info!("Battery voltage: {}mV", value)
+    }
+    if let Ok(value) = axp.battery_charging_status() {
+        log::info!("Battery charging status: {:?}", value)
+    }
+    if let Ok(value) = axp.get_irq_config_raw() {
+        log::info!("IRQ settings: {:?}", value)
+    };
+    if let Ok(value) = axp.get_irq_bits_raw() {
+        log::info!("IRQ status bits: {:?}", value)
+    };
+
+    /* end */
 }
 ```
+
+For more API information, read the generated doc.
 
 ## Other devices
 
 - M5Stack Core2 1.1
-    - DLDO1 works at 3.4V range
+    - DLDO1 works at 3.4V range, defaults to 3.3V
     - DLDO2 is NOT used
     - DCDC5/GPIO1/RTCLDO2 is NOT used
     - DCDC2 and DCDC4 are NOT used
     - **RTCLDO1 is 3.3V**, and the built-in RTC battery is not a backup for PMU.
+    - PMU's IRQ pin is NOT connected to the MCU.
 
 ## References
 
