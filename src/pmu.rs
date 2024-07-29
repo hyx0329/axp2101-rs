@@ -23,7 +23,7 @@ use embedded_hal::i2c::{Error as I2cError, ErrorKind as I2cErrorKind, I2c};
 use num_enum::{FromPrimitive, IntoPrimitive};
 
 #[allow(unused_imports)]
-use crate::irq::Axp2101IrqReason;
+use crate::irq::IrqReason;
 
 /// AXP PMU I2C address, it's same for several AXP chips.
 const AXP_CHIP_ADDR: u8 = 0x34;

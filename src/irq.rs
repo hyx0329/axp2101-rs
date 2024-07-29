@@ -8,6 +8,8 @@
 //! When there's any unhandled IRQ bit, the IRQ pin is asserted. Write 1 to the
 //! bits to clear them and PMU will deassert the IRQ signal.
 
+use num_enum::{FromPrimitive, IntoPrimitive};
+
 /// AXP2101 IRQ reason.
 ///
 /// All IRQs are by default enabled, unless especially documented.
@@ -16,9 +18,10 @@
 /// configuration only affects the signals on the IRQ pin.
 ///
 /// All IRQ status bits may be automatically cleared if condition changed.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u8)]
+#[derive(IntoPrimitive, FromPrimitive, Copy, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum Axp2101IrqReason {
+pub enum IrqReason {
     // REG 0x40 IRQ enable 0
     // REG 0x48 IRQ status 0, bits 0..7
     /// Battery underheat when discharging.
@@ -88,6 +91,7 @@ pub enum Axp2101IrqReason {
     /// VBUS removed.
     ///
     /// "VBUS Remove IRQ(vremove_irq)"
+    #[num_enum(default)]
     VbusRemoved,
     /// VBUS inserted.
     ///
