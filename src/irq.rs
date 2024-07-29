@@ -19,7 +19,7 @@ use num_enum::{FromPrimitive, IntoPrimitive};
 ///
 /// All IRQ status bits may be automatically cleared if condition changed.
 #[repr(u8)]
-#[derive(IntoPrimitive, FromPrimitive, Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(IntoPrimitive, FromPrimitive, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum IrqReason {
     // REG 0x40 IRQ enable 0
@@ -132,14 +132,15 @@ pub enum IrqReason {
     ///
     /// "LDO Over Current IRQ(ldooc_irq)"
     LdoOvercurrent,
-    /// Watchdog timer expired.
+    /// Watchdog timer expired. It defaults to disabled.
     ///
-    /// "Watchdog Expire IRQ(wdexp_irq)". It defaults to disabled.
+    /// "Watchdog Expire IRQ(wdexp_irq)".
     WatchdogTimer,
 }
 
+/// Contains AXP2101 IRQ status register values.
 #[derive(Debug, Clone, Copy)]
-pub struct IrqStatus(u8, u8, u8);
+pub struct IrqStatus(pub u8, pub u8, pub u8);
 
 impl IntoIterator for IrqStatus {
     type Item = IrqReason;
@@ -151,6 +152,7 @@ impl IntoIterator for IrqStatus {
     }
 }
 
+/// An iterator to provide easy parsing method for [`IrqStatus`].
 #[derive(Debug)]
 pub struct IrqReasonsIter {
     index: u8,

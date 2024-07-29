@@ -22,8 +22,7 @@ use core::ops::RangeBounds;
 use embedded_hal::i2c::{Error as I2cError, ErrorKind as I2cErrorKind, I2c};
 use num_enum::{FromPrimitive, IntoPrimitive};
 
-#[allow(unused_imports)]
-use crate::irq::IrqReason;
+use crate::irq::IrqStatus;
 
 /// AXP PMU I2C address, it's same for several AXP chips.
 const AXP_CHIP_ADDR: u8 = 0x34;
@@ -33,8 +32,6 @@ const AXP_CHIP_ADDR: u8 = 0x34;
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[non_exhaustive]
 pub enum Error {
-    /// Detected chip version does not match driver.
-    UnknownChip(u8),
     /// An I2C error occurred during the transaction.
     I2cError(I2cErrorKind),
     /// Value(voltage, timer length) exceeds hardware limit.
@@ -72,7 +69,7 @@ pub enum BatteryCurrentDirection {
 /// Battery charging status.
 #[allow(missing_docs)]
 #[repr(u8)]
-#[derive(IntoPrimitive, FromPrimitive, Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(IntoPrimitive, FromPrimitive, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BatteryChargingStatus {
     TryCharging,
@@ -85,11 +82,13 @@ pub enum BatteryChargingStatus {
     Unknown,
 }
 
-/// DIE Over-Temperature Protection temperatures.
+/// DIE Over-Temperature Protection temperatures, level 1.
+///
+/// Currently there's only one temperature level for AXP2101.
 #[repr(u8)]
 #[derive(IntoPrimitive, FromPrimitive, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum DieOverheatL1 {
+pub enum DieOverheatTempL1 {
     /// 115 celsius degree
     #[num_enum(default)]
     Deg115C,
@@ -660,8 +659,8 @@ impl<I2C: I2c> Axp2101<I2C> {
 
     /// Sets DIE Over-Temperature Protection level 1 temperature.
     ///
-    /// Chip defaults to [`OtpDieL1::Deg125C`].
-    pub fn set_die_temperature_l1(&mut self, value: DieOverheatL1) -> Result<(), Error> {
+    /// Chip defaults to [`DieOverheatTempL1::Deg125C`].
+    pub fn set_die_temperature_l1(&mut self, value: DieOverheatTempL1) -> Result<(), Error> {
         self.write_bits(REG_TDIE_CONTROL, 1..=2, value.into())
     }
 
@@ -948,7 +947,7 @@ impl<I2C: I2c> Axp2101<I2C> {
 
     /// Returns [`KeyDurationPowerOn`], the time duration PWRON key need to be active to trigger an power on event.
     pub fn key_duration_power_on(&mut self) -> Result<KeyDurationPowerOn, Error> {
-        let reg_val  = self.read_u8(REG_KEY_EVENT_TIME)?.get_bits(0..=1);
+        let reg_val = self.read_u8(REG_KEY_EVENT_TIME)?.get_bits(0..=1);
         Ok(KeyDurationPowerOn::from_primitive(reg_val))
     }
 
@@ -1060,6 +1059,14 @@ impl<I2C: I2c> Axp2101<I2C> {
         Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
     }
 
+    /// Returns current [`IrqStatus`].
+    pub fn irq_status(&mut self) -> Result<IrqStatus, Error> {
+        let mut buf: [u8; 3] = [0, 0, 0];
+        self.i2c
+            .write_read(AXP_CHIP_ADDR, &[REG_IRQ_ENABLE0], &mut buf)?;
+        Ok(IrqStatus(buf[0], buf[1], buf[2]))
+    }
+
     /// Gets raw IRQ config registers.
     pub fn get_irq_config_raw(&mut self) -> Result<[u8; 3], Error> {
         let mut buf: [u8; 3] = [0, 0, 0];
@@ -1078,9 +1085,8 @@ impl<I2C: I2c> Axp2101<I2C> {
         }
     }
 
-    // TODO: read raw IRQ registers and provide an iterable interface.
-
     /// Gets raw IRQ status bits.
+    #[deprecated(since = "0.1.0", note = "Migrate to [`Axp2101::irq_status`] instead.")]
     pub fn get_irq_bits_raw(&mut self) -> Result<[u8; 3], Error> {
         let mut buf: [u8; 3] = [0, 0, 0];
         self.i2c
