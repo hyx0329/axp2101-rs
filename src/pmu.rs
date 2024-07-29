@@ -1308,8 +1308,9 @@ mod test {
     }
 
     #[test]
-    fn test_chip_id_check() {
-        let mut data = [REG_CHIP_ID, 0b0110_0111];
+    fn test_chip_id_read() {
+        let chip_id = 0b0110_0111;
+        let mut data = [REG_CHIP_ID, chip_id];
         let addr = AXP_CHIP_ADDR;
         let i2c = FakeI2c {
             address: addr,
@@ -1317,9 +1318,9 @@ mod test {
         };
         let mut axp = Axp2101::new(i2c);
 
-        match axp.check() {
-            Ok(value) => assert_eq!(value, 0b10, "Chip ID error!"),
-            Err(_) => panic!("Chip ID checking failed! But it shouldn't!"),
+        match axp.chip_id() {
+            Ok(value) => assert_eq!(value, chip_id, "Chip ID error!"),
+            Err(_) => panic!("Chip ID reading failed! But it shouldn't!"),
         }
     }
 
@@ -1341,21 +1342,6 @@ mod test {
 
     macro_rules! test_get_voltage {
         ($mod_name:ident, $vaddr:literal; $volt:literal, $reg_val:literal $(;)? $($volt2:literal, $reg_val2:literal);*) => {
-            let mut data = [$vaddr, $reg_val];
-            let i2c = FakeI2c{address: AXP_CHIP_ADDR, data: &mut data};
-            let axp = Axp2101{i2c};
-            let mut regulator = $mod_name{axp};
-            match regulator.get_voltage() {
-                Ok(value) => assert_eq!($volt, value, "Voltage mismatch! Expect {}mV, got {}mV!", $volt, value),
-                Err(e) => panic!("Failed to get voltage from {:?}, {:?}", regulator, e),
-            }
-            test_get_voltage!($mod_name, $vaddr; $($volt2, $reg_val2);*);
-        };
-        ($mod_name:ident, $vaddr:literal; ) => {};
-    }
-
-    macro_rules! test_toggle_switch {
-        ($mod_name:ident, $swaddr:literal; $swbit:literal $(;)? $($volt2:literal, $reg_val2:literal);*) => {
             let mut data = [$vaddr, $reg_val];
             let i2c = FakeI2c{address: AXP_CHIP_ADDR, data: &mut data};
             let axp = Axp2101{i2c};
