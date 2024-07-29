@@ -921,7 +921,50 @@ impl<I2C: I2c> Axp2101<I2C> {
     }
 
     // TODO: REG 0x25 power timing implementation
-    // TODO: REG 0x26 sleep implementation
+
+    /// Sets if to wake up the PMU from sleep mode when IRQ pin pulled low.
+    ///
+    /// Chip defaults to `false`.
+    pub fn set_wakeup_by_irq_low(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_SLEEP_WAKE_CONFIG, 4, value)
+    }
+
+    /// Sets if to set PWROK to low level when PMU wokes. This is effectively to restart the
+    /// PMU when it wakes.
+    ///
+    /// Whenever PWROK pin is pulled low, the PMU will restart, and this is one of the 3
+    /// methods to restart.
+    ///
+    /// Chip defaults to `true`.
+    pub fn set_pwrok_low_when_wakeup(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_SLEEP_WAKE_CONFIG, 3, value)
+    }
+
+    /// Sets whether to keep the voltages of DCDC/LDO outputs when wakeup.
+    ///
+    /// Set `true` to use the voltages configured before waking up.
+    /// Set `false` to use chip's default voltages.
+    ///
+    /// Chip defaults to `false`.
+    pub fn set_keep_voltage_when_wakeup(&mut self, value: bool) -> Result<(), Error> {
+        self.write_bit(REG_SLEEP_WAKE_CONFIG, 2, value)
+    }
+
+    /// Wakes the PMU up. Read more detail at [`Axp2101::prepare_sleep`].
+    pub fn wakeup(&mut self) -> Result<(), Error> {
+        self.write_bit(REG_SLEEP_WAKE_CONFIG, 1, true)
+    }
+
+    /// Puts the PMU into sleep mode.
+    ///
+    /// When this method is called, the output enable bits at registers 0x80, 0x90 and 0x91(the
+    /// switch bits for all outputs) are backed up. Then the host may disable the outputs, or
+    /// configure the output voltages. When [`Axp2101::wakeup`] is called, the output enable bits
+    /// are restored, and the voltages are either restored to the configured values or reset to the defaults,
+    /// depending on how [`Axp2101::set_keep_voltage_when_wakeup`] configured.
+    pub fn prepare_sleep(&mut self) -> Result<(), Error> {
+        self.write_bit(REG_SLEEP_WAKE_CONFIG, 0, true)
+    }
 
     /// Returns [`KeyDurationIrq`], the time duration PWRON key need to be active to trigger an IRQ event.
     pub fn key_duration_irq(&mut self) -> Result<KeyDurationIrq, Error> {
