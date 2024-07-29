@@ -137,3 +137,55 @@ pub enum IrqReason {
     /// "Watchdog Expire IRQ(wdexp_irq)". It defaults to disabled.
     WatchdogTimer,
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct IrqStatus(u8, u8, u8);
+
+impl IntoIterator for IrqStatus {
+    type Item = IrqReason;
+    type IntoIter = IrqReasonsIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let value = (self.0 as u32) | ((self.1 as u32) << 8) | ((self.2 as u32) << 16);
+        IrqReasonsIter{ index: 0, register: value }
+    }
+}
+
+#[derive(Debug)]
+pub struct IrqReasonsIter {
+    index: u8,
+    register: u32,
+}
+
+impl Iterator for IrqReasonsIter {
+    type Item = IrqReason;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.register == 0 {
+            None
+        } else {
+            while self.register & 1 != 1 {
+                self.index += 1;
+                self.register >>= 1;
+            }
+            let reason = IrqReason::from_primitive(self.index);
+            self.index += 1;
+            self.register >>= 1;
+            Some(reason)
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_irq_iterator() {
+        let irqs =  IrqStatus(0, 11, 0);
+        let mut irq_iter = irqs.into_iter();
+        assert_eq!(Some(IrqReason::PowerKeyEdgePositive), irq_iter.next());
+        assert_eq!(Some(IrqReason::PowerKeyEdgeNegative), irq_iter.next());
+        assert_eq!(Some(IrqReason::PowerKeyEventShort), irq_iter.next());
+    }
+}
