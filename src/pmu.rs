@@ -71,15 +71,17 @@ pub enum BatteryCurrentDirection {
 
 /// Battery charging status.
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+#[derive(IntoPrimitive, FromPrimitive, Copy, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BatteryChargingStatus {
-    Tricharging,
-    Precharging,
+    TryCharging,
+    PreCharging,
     ConstantCurrent,
     ConstantVoltage,
     Charged,
     NotCharging,
+    #[num_enum(default)]
     Unknown,
 }
 
@@ -87,7 +89,7 @@ pub enum BatteryChargingStatus {
 #[repr(u8)]
 #[derive(IntoPrimitive, FromPrimitive, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum OtpDieL1 {
+pub enum DieOverheatL1 {
     /// 115 celsius degree
     #[num_enum(default)]
     Deg115C,
@@ -600,15 +602,8 @@ impl<I2C: I2c> Axp2101<I2C> {
 
     /// Returns [`BatteryChargingStatus`].
     pub fn battery_charging_status(&mut self) -> Result<BatteryChargingStatus, Error> {
-        match self.read_u8(REG_PMU_STATUS1)?.get_bits(0..=2) {
-            0 => Ok(BatteryChargingStatus::Tricharging),
-            1 => Ok(BatteryChargingStatus::Precharging),
-            2 => Ok(BatteryChargingStatus::ConstantCurrent),
-            3 => Ok(BatteryChargingStatus::ConstantVoltage),
-            4 => Ok(BatteryChargingStatus::Charged),
-            5 => Ok(BatteryChargingStatus::NotCharging),
-            _ => Ok(BatteryChargingStatus::Unknown),
-        }
+        let value = self.read_u8(REG_PMU_STATUS1)?.get_bits(0..=2);
+        Ok(BatteryChargingStatus::from_primitive(value))
     }
 
     /// Sets `true` to utilize internal discharge after powering off.
@@ -666,7 +661,7 @@ impl<I2C: I2c> Axp2101<I2C> {
     /// Sets DIE Over-Temperature Protection level 1 temperature.
     ///
     /// Chip defaults to [`OtpDieL1::Deg125C`].
-    pub fn set_die_temperature_l1(&mut self, value: OtpDieL1) -> Result<(), Error> {
+    pub fn set_die_temperature_l1(&mut self, value: DieOverheatL1) -> Result<(), Error> {
         self.write_bits(REG_TDIE_CONTROL, 1..=2, value.into())
     }
 
@@ -942,8 +937,8 @@ impl<I2C: I2c> Axp2101<I2C> {
 
     /// Returns [`KeyDurationPowerOff`], the time duration PWRON key need to be active to trigger an power off event.
     pub fn key_duration_power_off(&mut self) -> Result<KeyDurationPowerOff, Error> {
-        let result: KeyDurationPowerOff = self.read_u8(REG_KEY_EVENT_TIME)?.get_bits(2..=3).into();
-        Ok(result)
+        let reg_val = self.read_u8(REG_KEY_EVENT_TIME)?.get_bits(2..=3);
+        Ok(KeyDurationPowerOff::from_primitive(reg_val))
     }
 
     /// Sets PWRON key active duration for a power off event.
@@ -953,8 +948,8 @@ impl<I2C: I2c> Axp2101<I2C> {
 
     /// Returns [`KeyDurationPowerOn`], the time duration PWRON key need to be active to trigger an power on event.
     pub fn key_duration_power_on(&mut self) -> Result<KeyDurationPowerOn, Error> {
-        let result: KeyDurationPowerOn = self.read_u8(REG_KEY_EVENT_TIME)?.get_bits(0..=1).into();
-        Ok(result)
+        let reg_val  = self.read_u8(REG_KEY_EVENT_TIME)?.get_bits(0..=1);
+        Ok(KeyDurationPowerOn::from_primitive(reg_val))
     }
 
     /// Sets PWRON key active duration for a power on event.
