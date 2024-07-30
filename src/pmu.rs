@@ -1106,7 +1106,7 @@ impl<I2C: I2c> Axp2101<I2C> {
     pub fn irq_status(&mut self) -> Result<IrqStatus, Error> {
         let mut buf: [u8; 3] = [0, 0, 0];
         self.i2c
-            .write_read(AXP_CHIP_ADDR, &[REG_IRQ_ENABLE0], &mut buf)?;
+            .write_read(AXP_CHIP_ADDR, &[REG_IRQ_STATUS0], &mut buf)?;
         Ok(IrqStatus(buf[0], buf[1], buf[2]))
     }
 
