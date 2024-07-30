@@ -14,5 +14,5 @@ num_enum = { version = "0.7.2", default-features = false }
 paste = "1.0.15"
 
 [features]
-defmt = ["dep:defmt"]
+defmt = ["dep:defmt", "embedded-hal/defmt-03"]
 std = ["num_enum/std"]
