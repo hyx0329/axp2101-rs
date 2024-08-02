@@ -438,6 +438,15 @@ macro_rules! impl_regulator {
             axp: Axp2101<T>
         }
 
+        impl<I2C> $regulator_name<I2C> {
+            /// Creates the regulator directly from the I2C struct.
+            pub fn new(i2c: I2C) -> Self {
+                Self {
+                    axp: Axp2101::new(i2c),
+                }
+            }
+        }
+
         impl<I: I2c> Regulator for $regulator_name<I> {
             impl_regulator_voltage_control!{$vaddr, $vbits; $($vstart, $vend, $vstepsize);+}
 
@@ -447,6 +456,10 @@ macro_rules! impl_regulator {
 
             fn disable(&mut self) -> Result<(), Error> {
                 self.axp.write_bit($swaddr, $swbit, false)
+            }
+
+            fn status(&mut self) -> Result<bool, Error> {
+                Ok(self.axp.read_u8($swaddr)?.get_bit($swbit))
             }
         }
 
@@ -471,21 +484,23 @@ pub struct Axp2101<I2C> {
     i2c: I2C,
 }
 
-/// AXP2101 implementation
-///
-/// TODO: make it a trait, so other PMUs fit
-impl<I2C: I2c> Axp2101<I2C> {
+impl<I2C> Axp2101<I2C> {
     /// Side-effect-free constructor.
-    /// Nothing will be read or written before `init()` call.
+    /// Nothing will be read or written.
     pub fn new(i2c: I2C) -> Self {
         Axp2101 { i2c }
     }
 
-    /// Consumes the driver and give i2c back, which is useful when there's no helper lib.
+    /// Consumes the driver and gives i2c back, which is useful when there's no helper lib.
     pub fn destroy(self) -> I2C {
         self.i2c
     }
+}
 
+/// AXP2101 implementation
+///
+/// TODO: make it a trait, so other PMUs fit
+impl<I2C: I2c> Axp2101<I2C> {
     /// Read chip ID.
     ///
     /// It's revealed in the datasheet provided by M5Stack. On M5Stack Core2 1.1, the raw
@@ -1223,6 +1238,8 @@ pub trait Regulator {
     fn enable(&mut self) -> Result<(), Error>;
     /// Turn off the regulator.
     fn disable(&mut self) -> Result<(), Error>;
+    /// Returns if the regulator is enabled.
+    fn status(&mut self) -> Result<bool, Error>;
 }
 
 impl embedded_hal::digital::ErrorType for dyn Regulator {
