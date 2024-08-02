@@ -44,7 +44,6 @@ use axp2101::pmu::{
     Axp2101,
     Dcdc1,
     Error as AxpError,
-    Regulator,
 };
 
 fn main() {
