@@ -40,15 +40,20 @@ RTCLDO2 | NO | YES | possibly fixed output, nothing to implement
 
 ```rust
 // Assume there's one i2c struct having [`embedded_hal::i2c::I2c`] implemented.
-use axp2101::pmu::{Axp2101, Dcdc1, Regulator};
+use axp2101::pmu::{
+    Axp2101,
+    Dcdc1,
+    Error as AxpError,
+    Regulator,
+};
 
 fn main() {
     /* preparations */
 
     let mut axp = Axp2101::new(i2c);
     let mut dcdc1: Dcdc1<_> = axp.into();
-    // or this way
-    // let mut dcdc1 = Dcdc1{ axp: axp };
+    // or this way directly
+    // let mut dcdc1 = Dcdc1::new(i2c);
     let _ = dcdc1.set_voltage(3300);
     let _ = dcdc1.enable();
 
@@ -79,13 +84,33 @@ For more API information, read the generated doc.
 
 ## Other devices
 
-- M5Stack Core2 1.1
-    - DLDO1 works at 3.4V range, defaults to 3.3V
-    - DLDO2 is NOT used
-    - DCDC5/GPIO1/RTCLDO2 is NOT used
-    - DCDC2 and DCDC4 are NOT used
-    - **RTCLDO1 is 3.3V**, and the built-in RTC battery is not a backup for PMU.
-    - PMU's IRQ pin is NOT connected to the MCU.
+### M5Stack Core2 1.1
+
+- DLDO1 works at 3.4V range, defaults to 3.3V
+- DLDO2 is NOT used
+- DCDC5/GPIO1/RTCLDO2 is NOT used
+- DCDC2 and DCDC4 are NOT used
+- **RTCLDO1 is 3.3V**, and the built-in RTC battery is not a backup for PMU.
+- PMU's IRQ pin is NOT connected to the MCU.
+
+**The values in the table below are software detect values for reference only! They are NOT REAL values measured with a multimeter!**
+
+Regulator| Default enabled| Default voltage(mV)| Note
+:- | :- | :- | :-
+DCDC1| true| 3300| Direct power source for ESP32.
+DCDC2| false| 1200| Not used.
+DCDC3| true| 3300| Power for speaker/MBUS 3V3/ESP32(secondary).
+DCDC4| false| 1800| Not used.
+DCDC5| false| 1400| Not used.
+ALDO1| true| 1800| Not used.
+ALDO2| true| 3300| For LCD/Touch enable.
+ALDO3| false| 3300| For speaker enable.
+ALDO4| true| 3300| For LCD/Touch/TF-card power.
+BLDO1| false| 2800| For LCD backlight.
+BLDO2| false| 1500| Set this to 3300 when 5V boost output is used.
+DLDO1| false| 3300| For vibration motor.
+DLDO2| false| 1200| Not used.
+CPUSLDO| false| 1200| Not used.
 
 ## References
 
