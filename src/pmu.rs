@@ -416,11 +416,14 @@ macro_rules! chained_get_voltage {
 macro_rules! impl_regulator_voltage_control {
     ($vaddr:literal, $vbits:expr;
         $($vstart:literal, $vend:literal, $vstepsize:tt);+) => {
-        fn set_voltage(&mut self, value: u16) -> Result<(), Error> {
+        /// Set regulator voltage, in millivolt. Note the voltage value is always
+        /// "floored" to the nearest value, within the supported range.
+        pub fn set_voltage(&mut self, value: u16) -> Result<(), Error> {
             chained_set_voltage!(self, value, $vaddr, $vbits, 0; $($vstart, $vend, $vstepsize);+)
         }
 
-        fn get_voltage(&mut self) -> Result<u16, Error> {
+        /// Get regulator voltage, in millivolt.
+        pub fn get_voltage(&mut self) -> Result<u16, Error> {
             let raw_value = self.axp.read_u8($vaddr)?.get_bits($vbits) as u16;
             chained_get_voltage!(self, raw_value, 0; $($vstart, $vend, $vstepsize);+)
         }
@@ -438,7 +441,7 @@ macro_rules! impl_regulator {
             axp: Axp2101<T>
         }
 
-        impl<I2C> $regulator_name<I2C> {
+        impl<I2C: I2c> $regulator_name<I2C> {
             /// Creates the regulator directly from the I2C struct.
             pub fn new(i2c: I2C) -> Self {
                 Self {
@@ -447,20 +450,37 @@ macro_rules! impl_regulator {
             }
         }
 
-        impl<I: I2c> Regulator for $regulator_name<I> {
+        impl<I: I2c> $regulator_name<I> {
             impl_regulator_voltage_control!{$vaddr, $vbits; $($vstart, $vend, $vstepsize);+}
 
-            fn enable(&mut self) -> Result<(), Error> {
+            /// Turn on the regulator.
+            pub fn enable(&mut self) -> Result<(), Error> {
                 self.axp.write_bit($swaddr, $swbit, true)
             }
 
-            fn disable(&mut self) -> Result<(), Error> {
+            /// Turn off the regulator.
+            pub fn disable(&mut self) -> Result<(), Error> {
                 self.axp.write_bit($swaddr, $swbit, false)
             }
 
-            fn status(&mut self) -> Result<bool, Error> {
+            /// Returns if the regulator is enabled.
+            pub fn status(&mut self) -> Result<bool, Error> {
                 Ok(self.axp.read_u8($swaddr)?.get_bit($swbit))
             }
+        }
+
+        impl<I: I2c> embedded_hal::digital::OutputPin for $regulator_name<I> {
+            fn set_high(&mut self) -> Result<(), Self::Error> {
+                self.enable()
+            }
+
+            fn set_low(&mut self) -> Result<(), Self::Error> {
+                self.disable()
+            }
+        }
+
+        impl<I: I2c> embedded_hal::digital::ErrorType for $regulator_name<I> {
+            type Error = Error;
         }
 
         impl<I> From<Axp2101<I>> for $regulator_name<I> {
@@ -1221,38 +1241,6 @@ impl<I2C: I2c> Axp2101<I2C> {
         let mut reg_val = self.read_u8(reg)?;
         reg_val.set_bits(range, value);
         self.write_u8(reg, reg_val)
-    }
-}
-
-/// A trait to provide unified interface for all regulators.
-///
-/// By implementing this trait, the [`embedded_hal::digital::OutputPin`] is also implemented,
-/// allowing using regulators as output pins(use case: reset/power signals).
-pub trait Regulator {
-    /// Set regulator voltage, in millivolt. Note the voltage value is always
-    /// "floored" to the nearest value, within the supported range.
-    fn set_voltage(&mut self, value: u16) -> Result<(), Error>;
-    /// Get regulator voltage, in millivolt.
-    fn get_voltage(&mut self) -> Result<u16, Error>;
-    /// Turn on the regulator.
-    fn enable(&mut self) -> Result<(), Error>;
-    /// Turn off the regulator.
-    fn disable(&mut self) -> Result<(), Error>;
-    /// Returns if the regulator is enabled.
-    fn status(&mut self) -> Result<bool, Error>;
-}
-
-impl embedded_hal::digital::ErrorType for dyn Regulator {
-    type Error = Error;
-}
-
-impl embedded_hal::digital::OutputPin for dyn Regulator {
-    fn set_high(&mut self) -> Result<(), Self::Error> {
-        self.enable()
-    }
-
-    fn set_low(&mut self) -> Result<(), Self::Error> {
-        self.disable()
     }
 }
 

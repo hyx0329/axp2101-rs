@@ -148,7 +148,10 @@ impl IntoIterator for IrqStatus {
 
     fn into_iter(self) -> Self::IntoIter {
         let value = (self.0 as u32) | ((self.1 as u32) << 8) | ((self.2 as u32) << 16);
-        IrqReasonsIter{ index: 0, register: value }
+        IrqReasonsIter {
+            index: 0,
+            register: value,
+        }
     }
 }
 
@@ -184,7 +187,7 @@ mod test {
 
     #[test]
     fn test_irq_iterator() {
-        let irqs =  IrqStatus(0, 11, 0);
+        let irqs = IrqStatus(0, 11, 0);
         let mut irq_iter = irqs.into_iter();
         assert_eq!(Some(IrqReason::PowerKeyEdgePositive), irq_iter.next());
         assert_eq!(Some(IrqReason::PowerKeyEdgeNegative), irq_iter.next());

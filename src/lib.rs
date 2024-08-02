@@ -3,5 +3,5 @@
 #![warn(unsafe_code)]
 #![no_std]
 
-pub mod pmu;
 pub mod irq;
+pub mod pmu;
