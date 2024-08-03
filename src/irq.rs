@@ -145,12 +145,13 @@ pub enum IrqReason {
 ///
 /// The values are not masked with IRQ enable bits. That is, if the condition
 /// of the IRQ bit is satisfied, it'll be 1, until cleared by writing 1 to it
-/// or condition changed, and will still occur in the event iterator, but it 
+/// or condition changed, and will still occur in the event iterator, but it
 /// will not trigger the IRQ pin output.
 ///
 /// There's no way to tell the sequence of current IRQ events. So the events
 /// are processed based on their index.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct IrqStatus(pub u8, pub u8, pub u8);
 
 impl IntoIterator for IrqStatus {
@@ -168,6 +169,7 @@ impl IntoIterator for IrqStatus {
 
 /// An iterator to provide easy parsing method for [`IrqStatus`].
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct IrqReasonsIter {
     index: u8,
     register: u32,
