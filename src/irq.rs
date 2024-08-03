@@ -139,6 +139,17 @@ pub enum IrqReason {
 }
 
 /// Contains AXP2101 IRQ status register values.
+///
+/// The 3 child components consist of raw readings from IRQ status
+/// registers 0x48, 0x49, 0x4A.
+///
+/// The values are not masked with IRQ enable bits. That is, if the condition
+/// of the IRQ bit is satisfied, it'll be 1, until cleared by writing 1 to it
+/// or condition changed, and will still occur in the event iterator, but it 
+/// will not trigger the IRQ pin output.
+///
+/// There's no way to tell the sequence of current IRQ events. So the events
+/// are processed based on their index.
 #[derive(Debug, Clone, Copy)]
 pub struct IrqStatus(pub u8, pub u8, pub u8);
 
@@ -165,6 +176,14 @@ pub struct IrqReasonsIter {
 impl Iterator for IrqReasonsIter {
     type Item = IrqReason;
 
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        if self.register > 0 {
+            (1, Some(24 - self.index as usize))
+        } else {
+            (0, Some(0))
+        }
+    }
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.register == 0 {
             None
@@ -189,8 +208,12 @@ mod test {
     fn test_irq_iterator() {
         let irqs = IrqStatus(0, 11, 0);
         let mut irq_iter = irqs.into_iter();
+        assert_eq!((1, Some(24)), irq_iter.size_hint());
         assert_eq!(Some(IrqReason::PowerKeyEdgePositive), irq_iter.next());
+        assert_eq!((1, Some(15)), irq_iter.size_hint());
         assert_eq!(Some(IrqReason::PowerKeyEdgeNegative), irq_iter.next());
+        assert_eq!((1, Some(14)), irq_iter.size_hint());
         assert_eq!(Some(IrqReason::PowerKeyEventShort), irq_iter.next());
+        assert_eq!((0, Some(0)), irq_iter.size_hint());
     }
 }

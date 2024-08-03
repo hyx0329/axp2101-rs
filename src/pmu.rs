@@ -1137,7 +1137,7 @@ impl<I2C: I2c> Axp2101<I2C> {
         Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
     }
 
-    /// Returns current [`IrqStatus`].
+    /// Returns current [`IrqStatus`]. Read more there for how to handle IRQ events.
     pub fn irq_status(&mut self) -> Result<IrqStatus, Error> {
         let mut buf: [u8; 3] = [0, 0, 0];
         self.i2c
@@ -1161,15 +1161,6 @@ impl<I2C: I2c> Axp2101<I2C> {
             let write_buf: [u8; 4] = [REG_IRQ_ENABLE0, buf[0], buf[1], buf[2]];
             Ok(self.i2c.write(AXP_CHIP_ADDR, &write_buf)?)
         }
-    }
-
-    /// Gets raw IRQ status bits.
-    #[deprecated(since = "0.1.0", note = "Migrate to [`Axp2101::irq_status`] instead.")]
-    pub fn get_irq_bits_raw(&mut self) -> Result<[u8; 3], Error> {
-        let mut buf: [u8; 3] = [0, 0, 0];
-        self.i2c
-            .write_read(AXP_CHIP_ADDR, &[REG_IRQ_STATUS0], &mut buf)?;
-        Ok(buf)
     }
 
     // TODO: A lot.
