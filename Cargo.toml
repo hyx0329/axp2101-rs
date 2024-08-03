@@ -1,8 +1,13 @@
 [package]
 name = "axp2101"
+description = "AXP2101 driver for embedded-hal 1.0"
 authors = ["HuangYunXuan <hyx0329@outlook.com>"]
+keywords = ["embedded-hal-driver", "axp", "pmu"]
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.60"
+readme = "README.md"
+license = "MIT"
 
 [dependencies]
 bit_field = "0.10.2"
