@@ -11,8 +11,8 @@
 //! Note: "RWAC" in datasheet probably means "Read & Write, Always Clear", and
 //! "RW1C" possibily means "Read & Write, write 1 to Clear".
 //!
-//! [`embedded_hal::digital::OutputPin`] implemented for [`Regulator`], so each regulator(DCDCx, xLDOx) can be used as an
-//! output GPIO/switch, which is the use case on M5Stack Core2.
+//! [`embedded_hal::digital::OutputPin`] implemented for every regulator(DCDCx, xLDOx) so they can be used as
+//! output GPIOs/switches, which is the use case on M5Stack Core2.
 //!
 //! Not every PMU feature is implemented. The register addresss consts not used indicate the features not implemented.
 //!
