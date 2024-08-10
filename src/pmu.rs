@@ -373,7 +373,7 @@ address!{
 macro_rules! chained_set_voltage {
     ($self:ident, $val:ident, $vaddr:literal, $vbits:expr, $offset:expr; $start:literal, $end:literal, $stepsize:literal $(;)?
         $($startnext:literal, $endnext:literal, $stepsizenext:tt);*) => {
-        if $val >= $start && $val <= $end {
+        if ($start..=$end).contains(&$val) {
             let reg_val = (($val - $start) / $stepsize + $offset) as u8;
             $self.axp.write_bits($vaddr, $vbits, reg_val)
         } else {
@@ -711,11 +711,11 @@ impl<I2C: I2c> Axp2101<I2C> {
     ///
     /// Chip defaults to 4700mV. This field is called `ln_vsys_dpm` in one datasheet.
     pub fn set_min_vsys_linear_charger(&mut self, value: u16) -> Result<(), Error> {
-        if value < 4100 || value > 4800 {
-            Err(Error::ValueOutOfRange)
-        } else {
+        if (4100..=4800).contains(&value) {
             let reg_val = ((value - 4100) / 100) as u8;
             self.write_bits(REG_VSYS_LOW_THRESH, 4..=6, reg_val)
+        } else {
+            Err(Error::ValueOutOfRange)
         }
     }
 
@@ -724,11 +724,11 @@ impl<I2C: I2c> Axp2101<I2C> {
     ///
     /// Chip defaults to 4360mV(0b0110)
     pub fn set_vindpm_thresh(&mut self, value: u16) -> Result<(), Error> {
-        if value < 3880 || value > 5080 {
-            Err(Error::ValueOutOfRange)
-        } else {
+        if (3880..=5080).contains(&value) {
             let reg_val = ((value - 3880) / 80) as u8;
             self.write_bits(REG_VIN_LOW_THRESH, 0..=3, reg_val)
+        } else {
+            Err(Error::ValueOutOfRange)
         }
     }
 
@@ -815,11 +815,11 @@ impl<I2C: I2c> Axp2101<I2C> {
     ///
     /// From 5% to 20%, both end included, 1% per step.
     pub fn set_bat_low_level2(&mut self, value: u8) -> Result<(), Error> {
-        if value < 5 || value > 20 {
-            Err(Error::ValueOutOfRange)
-        } else {
+        if (5..=20).contains(&value) {
             let reg_val = value - 5;
             self.write_bits(REG_BAT_LOW_WARN_THRESH, 4..=7, reg_val)
+        } else {
+            Err(Error::ValueOutOfRange)
         }
     }
 
@@ -947,11 +947,11 @@ impl<I2C: I2c> Axp2101<I2C> {
     ///
     /// The range is [2600mV, 3300mV], total 8 steps.
     pub fn set_vbat_poweroff_threshold(&mut self, value: u16) -> Result<(), Error> {
-        if value < 2600 || value > 3300 {
-            Err(Error::ValueOutOfRange)
-        } else {
+        if (2600..=3300).contains(&value) {
             let reg_val = ((value - 2600) / 100) as u8;
             self.write_bits(REG_POWEROFF_VBAT_LOW_THRESH, 0..=2, reg_val)
+        } else {
+            Err(Error::ValueOutOfRange)
         }
     }
 
