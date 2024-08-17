@@ -38,7 +38,6 @@ pub enum Error {
     ValueOutOfRange,
     /// Failed to parse a value. E.g. failed to process a value read from chip.
     ParseError,
-    /// Unsupported action. Something might be not able to be changed.
     /// A different error occurred. The original error(mapped from) may contain more information.
     Other,
 }

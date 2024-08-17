@@ -40,10 +40,10 @@ RTCLDO2 | NO | YES | possibly fixed output, nothing to implement
 
 ```rust
 // Assume there's one i2c struct having [`embedded_hal::i2c::I2c`] implemented.
-use axp2101::pmu::{
+// I2C bus can be shared using embedded-hal-bus
+use axp2101::{
     Axp2101,
     Dcdc1,
-    Error as AxpError,
 };
 
 fn main() {
