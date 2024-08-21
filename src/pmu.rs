@@ -282,6 +282,35 @@ pub enum ChargeLedPattern {
     Low,
 }
 
+/// Common trait for all regulators.
+pub trait Regulator {
+    /// Turn on the regulator.
+    fn enable(&mut self) -> Result<(), Error>;
+    /// Turn off the regulator.
+    fn disable(&mut self) -> Result<(), Error>;
+    /// Returns if the regulator is enabled.
+    fn status(&mut self) -> Result<bool, Error>;
+    /// Set regulator voltage, in millivolt. Note the voltage value is always
+    /// "floored" to the nearest value, within the supported range.
+    fn set_voltage(&mut self, value: u16) -> Result<(), Error>;
+    /// Get regulator voltage, in millivolt.
+    fn get_voltage(&mut self) -> Result<u16, Error>;
+}
+
+impl embedded_hal::digital::OutputPin for dyn Regulator {
+    fn set_high(&mut self) -> Result<(), Self::Error> {
+        self.enable()
+    }
+
+    fn set_low(&mut self) -> Result<(), Self::Error> {
+        self.disable()
+    }
+}
+
+impl embedded_hal::digital::ErrorType for dyn Regulator {
+    type Error = Error;
+}
+
 /// Create registers consts, make the code more readable.
 macro_rules! address {
     ($name:ident, $value:literal, $($key:ident, $val:literal),+ $(,)?) => {
@@ -415,14 +444,11 @@ macro_rules! chained_get_voltage {
 macro_rules! impl_regulator_voltage_control {
     ($vaddr:literal, $vbits:expr;
         $($vstart:literal, $vend:literal, $vstepsize:tt);+) => {
-        /// Set regulator voltage, in millivolt. Note the voltage value is always
-        /// "floored" to the nearest value, within the supported range.
-        pub fn set_voltage(&mut self, value: u16) -> Result<(), Error> {
+        fn set_voltage(&mut self, value: u16) -> Result<(), Error> {
             chained_set_voltage!(self, value, $vaddr, $vbits, 0; $($vstart, $vend, $vstepsize);+)
         }
 
-        /// Get regulator voltage, in millivolt.
-        pub fn get_voltage(&mut self) -> Result<u16, Error> {
+        fn get_voltage(&mut self) -> Result<u16, Error> {
             let raw_value = self.axp.read_u8($vaddr)?.get_bits($vbits) as u16;
             chained_get_voltage!(self, raw_value, 0; $($vstart, $vend, $vstepsize);+)
         }
@@ -449,37 +475,20 @@ macro_rules! impl_regulator {
             }
         }
 
-        impl<I: I2c> $regulator_name<I> {
+        impl<I: I2c> Regulator for $regulator_name<I> {
             impl_regulator_voltage_control!{$vaddr, $vbits; $($vstart, $vend, $vstepsize);+}
 
-            /// Turn on the regulator.
-            pub fn enable(&mut self) -> Result<(), Error> {
+            fn enable(&mut self) -> Result<(), Error> {
                 self.axp.write_bit($swaddr, $swbit, true)
             }
 
-            /// Turn off the regulator.
-            pub fn disable(&mut self) -> Result<(), Error> {
+            fn disable(&mut self) -> Result<(), Error> {
                 self.axp.write_bit($swaddr, $swbit, false)
             }
 
-            /// Returns if the regulator is enabled.
-            pub fn status(&mut self) -> Result<bool, Error> {
+            fn status(&mut self) -> Result<bool, Error> {
                 Ok(self.axp.read_u8($swaddr)?.get_bit($swbit))
             }
-        }
-
-        impl<I: I2c> embedded_hal::digital::OutputPin for $regulator_name<I> {
-            fn set_high(&mut self) -> Result<(), Self::Error> {
-                self.enable()
-            }
-
-            fn set_low(&mut self) -> Result<(), Self::Error> {
-                self.disable()
-            }
-        }
-
-        impl<I: I2c> embedded_hal::digital::ErrorType for $regulator_name<I> {
-            type Error = Error;
         }
 
         impl<I> From<Axp2101<I>> for $regulator_name<I> {
