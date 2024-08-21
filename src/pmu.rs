@@ -297,17 +297,45 @@ pub trait Regulator {
     fn get_voltage(&mut self) -> Result<u16, Error>;
 }
 
-impl embedded_hal::digital::OutputPin for dyn Regulator {
-    fn set_high(&mut self) -> Result<(), Self::Error> {
-        self.enable()
-    }
+/// Wrapper for a regulator to make it compatible with [embedded_hal::digital::OutputPin].
+///
+/// Example:
+/// ```rust,ignore
+/// let r = Dcdc1::new(i2c);
+/// let mut pin = RegulatorPin::new(r);
+/// pin.set_high().unwrap();
+/// ```
+pub struct RegulatorPin<T> {
+    regulator: T,
+}
 
-    fn set_low(&mut self) -> Result<(), Self::Error> {
-        self.disable()
+impl<T> RegulatorPin<T>
+where
+    T: Regulator,
+{
+    /// Create a RegulatorPin from a Regulator
+    pub fn new(regulator: T) -> Self {
+        Self { regulator }
     }
 }
 
-impl embedded_hal::digital::ErrorType for dyn Regulator {
+impl<T> embedded_hal::digital::OutputPin for RegulatorPin<T>
+where
+    T: Regulator,
+{
+    fn set_high(&mut self) -> Result<(), Self::Error> {
+        self.regulator.enable()
+    }
+
+    fn set_low(&mut self) -> Result<(), Self::Error> {
+        self.regulator.disable()
+    }
+}
+
+impl<T> embedded_hal::digital::ErrorType for RegulatorPin<T>
+where
+    T: Regulator,
+{
     type Error = Error;
 }
 

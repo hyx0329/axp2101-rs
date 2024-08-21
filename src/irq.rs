@@ -10,15 +10,16 @@
 //!
 //! Example code:
 //!
-//! ```
+//! ```rust,ignore
 //! let axp = Axp2101::new(i2c);
 //! // read current IRQ events
 //! let reasons = axp.irq_status().unwrap();
 //! // clear the IRQ bits, assuming processed
 //! axp.irq_clear_all().unwrap();
 //! // iterate over the obtained IRQ events
+//! // they are NOT masked and may contain ignored bits
 //! for reason in reasons.into_iter() {
-//!     println!("PMU IRQ reason: {:?}", event);
+//!     println!("PMU IRQ reason: {:?}", reason);
 //! }
 //! ```
 

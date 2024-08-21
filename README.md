@@ -38,7 +38,7 @@ RTCLDO2 | NO | YES | possibly fixed output, nothing to implement
 
 ## Example
 
-```rust
+```rust,ignore
 // Assume there's one i2c struct having [`embedded_hal::i2c::I2c`] implemented.
 // I2C bus can be shared using embedded-hal-bus
 use axp2101::{
@@ -47,35 +47,38 @@ use axp2101::{
     Regulator as _,
 };
 
-/* preparations */
+fn main() {
 
-let mut axp = Axp2101::new(i2c);
-let mut dcdc1: Dcdc1<_> = axp.into();
-// or this way directly
-// let mut dcdc1 = Dcdc1::new(i2c);
-let _ = dcdc1.set_voltage(3300);
-let _ = dcdc1.enable();
+    /* preparations */
 
-// take it back
-let mut axp: Axp2101<_> = dcdc1.into();
+    let mut axp = Axp2101::new(i2c);
+    let mut dcdc1: Dcdc1<_> = axp.into();
+    // or this way directly
+    // let mut dcdc1 = Dcdc1::new(i2c);
+    let _ = dcdc1.set_voltage(3300);
+    let _ = dcdc1.enable();
 
-if let Ok(value) = axp.battery_percent() {
-    log::info!("Battery percent: {}%", value)
+    // take it back
+    let mut axp: Axp2101<_> = dcdc1.into();
+
+    if let Ok(value) = axp.battery_percent() {
+        log::info!("Battery percent: {}%", value)
+    }
+    if let Ok(value) = axp.battery_voltage() {
+        log::info!("Battery voltage: {}mV", value)
+    }
+    if let Ok(value) = axp.battery_charging_status() {
+        log::info!("Battery charging status: {:?}", value)
+    }
+    if let Ok(value) = axp.get_irq_config_raw() {
+        log::info!("IRQ settings: {:?}", value)
+    };
+    if let Ok(value) = axp.get_irq_bits_raw() {
+        log::info!("IRQ status bits: {:?}", value)
+    };
+
+    /* end */
 }
-if let Ok(value) = axp.battery_voltage() {
-    log::info!("Battery voltage: {}mV", value)
-}
-if let Ok(value) = axp.battery_charging_status() {
-    log::info!("Battery charging status: {:?}", value)
-}
-if let Ok(value) = axp.get_irq_config_raw() {
-    log::info!("IRQ settings: {:?}", value)
-};
-if let Ok(value) = axp.get_irq_bits_raw() {
-    log::info!("IRQ status bits: {:?}", value)
-};
-
-/* end */
 ```
 
 For more API information, read the generated doc.
