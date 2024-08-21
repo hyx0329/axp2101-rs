@@ -7,6 +7,20 @@
 //!
 //! When there's any unhandled IRQ bit, the IRQ pin is asserted. Write 1 to the
 //! bits to clear them and PMU will deassert the IRQ signal.
+//!
+//! Example code:
+//!
+//! ```
+//! let axp = Axp2101::new(i2c);
+//! // read current IRQ events
+//! let reasons = axp.irq_status().unwrap();
+//! // clear the IRQ bits, assuming processed
+//! axp.irq_clear_all().unwrap();
+//! // iterate over the obtained IRQ events
+//! for reason in reasons.into_iter() {
+//!     println!("PMU IRQ reason: {:?}", event);
+//! }
+//! ```
 
 use num_enum::{FromPrimitive, IntoPrimitive};
 
