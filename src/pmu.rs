@@ -16,6 +16,7 @@
 //!
 //! Not every PMU feature is implemented. The register addresss consts not used indicate the features not implemented.
 //!
+#![allow(rustdoc::private_intra_doc_links)]
 
 use bit_field::BitField;
 use core::ops::RangeBounds;
@@ -559,7 +560,7 @@ impl<I2C> Axp2101<I2C> {
 impl<I2C: I2c> Axp2101<I2C> {
     /// Read chip ID.
     ///
-    /// It's revealed in the datasheet provided by M5Stack. On M5Stack Core2 1.1, the raw
+    /// It's revealed in the datasheet provided by M5Stack. On M5Stack Core2 V1.1, the raw
     /// reading is `74`(`0b01001010`), while the datasheet says it should be `0b01XX0111`.
     /// It may vary on different chip variants(e.g. customized ones).
     pub fn chip_id(&mut self) -> Result<u8, Error> {
@@ -685,6 +686,11 @@ impl<I2C: I2c> Axp2101<I2C> {
 
     /// Sets `true` to restart when PWROK(Power good indication output) pin pulled low.
     ///
+    /// All outputs except RTCLDO and VREF will be turned off at reset state, and then
+    /// PMU initiates its startup sequence.
+    ///
+    /// This is one of the three PMU restart methods. See [Self::restart] and [Self::set_watchdog_action].
+    ///
     /// Chip defaults to `false`.
     pub fn set_restart_on_pwrok_low(&mut self, value: bool) -> Result<(), Error> {
         self.write_bit(REG_PMU_CONFIG, 3, value)
@@ -698,6 +704,12 @@ impl<I2C: I2c> Axp2101<I2C> {
     }
 
     /// Restarts the PMU, reset register values to default states.
+    ///
+    /// All outputs except RTCLDO and VREF will be turned off at reset state, and then
+    /// PMU initiates its startup sequence.
+    ///
+    /// This is one of the three PMU restart methods. See [Self::set_restart_on_pwrok_low]
+    /// and [Self::set_watchdog_action].
     pub fn restart(&mut self) -> Result<(), Error> {
         self.write_bit(REG_PMU_CONFIG, 1, true)
     }
@@ -1000,11 +1012,10 @@ impl<I2C: I2c> Axp2101<I2C> {
         self.write_bit(REG_SLEEP_WAKE_CONFIG, 4, value)
     }
 
-    /// Sets if to set PWROK to low level when PMU wokes. This is effectively to restart the
-    /// PMU when it wakes.
+    /// Sets if to set PWROK to low level when PMU woke.
     ///
-    /// Whenever PWROK pin is pulled low, the PMU will restart, and this is one of the 3
-    /// methods to restart.
+    /// When [REG_PMU_CONFIG]/reg 0x10 bit 3 is 1, this action is effectively to restart the PMU.
+    /// See [Self::set_restart_on_pwrok_low].
     ///
     /// Chip defaults to `true`.
     pub fn set_pwrok_low_when_wakeup(&mut self, value: bool) -> Result<(), Error> {
