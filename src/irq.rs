@@ -2,15 +2,16 @@
 //!
 //! All IRQs are by default enabled, unless especially documented.
 //!
-//! All IRQ bits are toggled regardless of the IRQ configuration. The IRQ
+//! All IRQ bits will be toggled regardless of the IRQ configuration. The IRQ
 //! configuration only affects the signals on the IRQ pin.
 //!
-//! When there's any unhandled IRQ bit, the IRQ pin is asserted. Write 1 to the
-//! bits to clear them and PMU will deassert the IRQ signal.
+//! When there's any unhandled IRQ bit, the IRQ pin is kept asserted. Write 1
+//! to the bits to clear them and PMU will deassert the IRQ signal.
 //!
 //! Example code:
 //!
 //! ```rust,ignore
+//! // new driver instance
 //! let axp = Axp2101::new(i2c);
 //! // read current IRQ events
 //! let reasons = axp.irq_status().unwrap();
