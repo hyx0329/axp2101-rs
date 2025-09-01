@@ -24,16 +24,21 @@
 //! }
 //! ```
 
+use embedded_hal::i2c::I2c;
 use num_enum::{FromPrimitive, IntoPrimitive};
+
+use crate::core::Axp2101;
+use crate::error::Error;
+use crate::register_addresses::{AXP_CHIP_ADDR, REG_IRQ_ENABLE0, REG_IRQ_STATUS0};
 
 /// AXP2101 IRQ reason.
 ///
-/// All IRQs are by default enabled, unless especially documented.
+/// All IRQs are by default enabled, unless specifically documented.
 ///
 /// All IRQ bits are toggled regardless of the IRQ configuration. The IRQ
 /// configuration only affects the signals on the IRQ pin.
 ///
-/// All IRQ status bits may be automatically cleared if condition changed.
+/// All IRQ status bits may be automatically cleared if condition is changed.
 #[repr(u8)]
 #[derive(IntoPrimitive, FromPrimitive, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -214,6 +219,52 @@ impl Iterator for IrqReasonsIter {
             self.index += 1;
             self.register >>= 1;
             Some(reason)
+        }
+    }
+}
+
+impl<I2C: I2c> Axp2101<I2C> {
+    /// Clears all IRQ status bits.
+    pub fn irq_clear_all(&mut self) -> Result<(), Error> {
+        let buf: [u8; 4] = [REG_IRQ_STATUS0, 0xFF, 0xFF, 0xFF];
+        Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
+    }
+
+    /// Enables all IRQ signals.
+    pub fn irq_enable_all(&mut self) -> Result<(), Error> {
+        let buf: [u8; 4] = [REG_IRQ_ENABLE0, 0xFF, 0xFF, 0xFF];
+        Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
+    }
+
+    /// Disables all IRQ signals.
+    pub fn irq_disable_all(&mut self) -> Result<(), Error> {
+        let buf: [u8; 4] = [REG_IRQ_ENABLE0, 0, 0, 0];
+        Ok(self.i2c.write(AXP_CHIP_ADDR, &buf)?)
+    }
+
+    /// Returns current [`IrqStatus`]. Read more there for how to handle IRQ events.
+    pub fn irq_status(&mut self) -> Result<IrqStatus, Error> {
+        let mut buf: [u8; 3] = [0, 0, 0];
+        self.i2c
+            .write_read(AXP_CHIP_ADDR, &[REG_IRQ_STATUS0], &mut buf)?;
+        Ok(IrqStatus(buf[0], buf[1], buf[2]))
+    }
+
+    /// Gets raw IRQ config registers.
+    pub fn irq_config_raw(&mut self) -> Result<[u8; 3], Error> {
+        let mut buf: [u8; 3] = [0, 0, 0];
+        self.i2c
+            .write_read(AXP_CHIP_ADDR, &[REG_IRQ_ENABLE0], &mut buf)?;
+        Ok(buf)
+    }
+
+    /// Sets raw IRQ config registers.
+    pub fn set_irq_config_raw(&mut self, buf: &[u8]) -> Result<(), Error> {
+        if buf.len() != 3 {
+            Err(Error::Other)
+        } else {
+            let write_buf: [u8; 4] = [REG_IRQ_ENABLE0, buf[0], buf[1], buf[2]];
+            Ok(self.i2c.write(AXP_CHIP_ADDR, &write_buf)?)
         }
     }
 }
