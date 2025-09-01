@@ -116,7 +116,8 @@ pub enum PowerOnReason {
     /// PWRON pin pulled HIGH, only when PWRON is configured in EN mode.
     PowerOnEnMode,
     /// Unknown power on reason, maybe a customized one.
-    Unknown,
+    /// The raw value of the register is returned.
+    Unknown(u8),
 }
 
 /// PMU power off reason.
@@ -141,7 +142,8 @@ pub enum PowerOffReason {
     /// DIE temperature exceeds limit.
     DieOverheat,
     /// Unknown power on reason, should not occur in normal cases.
-    Unknown,
+    /// The raw value of the register is returned.
+    Unknown(u8),
 }
 
 /// PWRON key active duration to trigger an IRQ event.
@@ -900,7 +902,7 @@ impl<I2C: I2c> Axp2101<I2C> {
         } else if raw_value.get_bit(5) {
             Ok(PowerOnReason::PowerOnEnMode)
         } else {
-            Ok(PowerOnReason::Unknown)
+            Ok(PowerOnReason::Unknown(raw_value))
         }
     }
 
@@ -926,7 +928,7 @@ impl<I2C: I2c> Axp2101<I2C> {
         } else if raw_value.get_bit(7) {
             Ok(PowerOffReason::DieOverheat)
         } else {
-            Ok(PowerOffReason::Unknown)
+            Ok(PowerOffReason::Unknown(raw_value))
         }
     }
 
