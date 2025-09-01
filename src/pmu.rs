@@ -297,7 +297,7 @@ pub trait Regulator {
     /// "floored" to the nearest value, within the supported range.
     fn set_voltage(&mut self, value: u16) -> Result<(), Error>;
     /// Get regulator voltage, in millivolt.
-    fn get_voltage(&mut self) -> Result<u16, Error>;
+    fn voltage(&mut self) -> Result<u16, Error>;
 }
 
 /// Wrapper for a regulator to make it compatible with [embedded_hal::digital::OutputPin].
@@ -450,7 +450,7 @@ macro_rules! chained_set_voltage {
     };
 }
 
-/// Tool for quick implementation of [`Regulator::get_voltage`].
+/// Tool for quick implementation of [`Regulator::voltage`].
 macro_rules! chained_get_voltage {
     ($self:ident, $val:ident, $offset:expr; $start:literal, $end:literal, $stepsize:literal $(;)?
         $($startnext:literal, $endnext:literal, $stepsizenext:tt);*) => {
@@ -471,7 +471,7 @@ macro_rules! chained_get_voltage {
     };
 }
 
-/// Tool for quick implementation of [`Regulator::set_voltage`] and [`Regulator::get_voltage`].
+/// Tool for quick implementation of [`Regulator::set_voltage`] and [`Regulator::voltage`].
 macro_rules! impl_regulator_voltage_control {
     ($vaddr:literal, $vbits:expr;
         $($vstart:literal, $vend:literal, $vstepsize:tt);+) => {
@@ -479,7 +479,7 @@ macro_rules! impl_regulator_voltage_control {
             chained_set_voltage!(self, value, $vaddr, $vbits, 0; $($vstart, $vend, $vstepsize);+)
         }
 
-        fn get_voltage(&mut self) -> Result<u16, Error> {
+        fn voltage(&mut self) -> Result<u16, Error> {
             let raw_value = self.axp.read_u8($vaddr)?.get_bits($vbits) as u16;
             chained_get_voltage!(self, raw_value, 0; $($vstart, $vend, $vstepsize);+)
         }
@@ -1429,17 +1429,17 @@ mod test {
         ($mod_name:ident, $vaddr:literal; ) => {};
     }
 
-    macro_rules! test_get_voltage {
+    macro_rules! test_read_voltage {
         ($mod_name:ident, $vaddr:literal; $volt:literal, $reg_val:literal $(;)? $($volt2:literal, $reg_val2:literal);*) => {
             let mut data = [$vaddr, $reg_val];
             let i2c = FakeI2c{address: AXP_CHIP_ADDR, data: &mut data};
             let axp = Axp2101{i2c};
             let mut regulator = $mod_name{axp};
-            match regulator.get_voltage() {
+            match regulator.voltage() {
                 Ok(value) => assert_eq!($volt, value, "Voltage mismatch! Expect {}mV, got {}mV!", $volt, value),
                 Err(e) => panic!("Failed to get voltage from {:?}, {:?}", regulator, e),
             }
-            test_get_voltage!($mod_name, $vaddr; $($volt2, $reg_val2);*);
+            test_read_voltage!($mod_name, $vaddr; $($volt2, $reg_val2);*);
         };
         ($mod_name:ident, $vaddr:literal; ) => {};
     }
@@ -1462,8 +1462,8 @@ mod test {
 
             paste! {
                 #[test]
-                fn [< test_ $mod_name _get_voltage >]() {
-                    test_get_voltage!($mod_name, $vaddr; $($volt, $reg_val);*);
+                fn [< test_ $mod_name _read_voltage >]() {
+                    test_read_voltage!($mod_name, $vaddr; $($volt, $reg_val);*);
                 }
             }
 
